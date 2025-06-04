@@ -1,0 +1,7 @@
+# build + dependencies
+node_modules
+.next
+# env / secrets
+.env*
+# macOS / editor cruft
+.DS_Store
