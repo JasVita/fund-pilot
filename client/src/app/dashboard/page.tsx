@@ -13,7 +13,6 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 
 ChartJS.register( CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler );
 
-/* ─── global API base (env-aware) ─────────────────────────── */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
 
 /* ─── money formatter ─────────────────────────────────────── */
@@ -314,7 +313,7 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <Progress
-                    value={row.percentage}
+                    value={row.percentage} /* 0-100 fits the component */
                     className="h-2 [&>div[role=progressbar]]:bg-blue-500"
                   />
                 </div>
