@@ -25,57 +25,6 @@ const usdCompact = (v: number) =>
     maximumFractionDigits: 1,
   }).format(v);
 
-
-const navRaw = [
-  { month: "Jan", nav: 2.4, dividend: 0.8 },
-  { month: "Feb", nav: 1.8, dividend: 1.2 },
-  { month: "Mar", nav: 3.2, dividend: 0.9 },
-  { month: "Apr", nav: -0.8, dividend: 1.1 },
-  { month: "May", nav: 2.8, dividend: 0.95 },
-  { month: "Jun", nav: 4.2, dividend: 1.3 },
-];
-
-const redeemDemo = [
-  { investor: "Pension Fund Alpha", amount: 12.5, percentage: 8.2 },
-  { investor: "Insurance Corp Beta", amount: 8.8, percentage: 5.7 },
-  { investor: "Endowment Gamma", amount: 6.3, percentage: 4.1 },
-  { investor: "Foundation Delta", amount: 4.4, percentage: 2.9 },
-  { investor: "Trust Epsilon", amount: 3.1, percentage: 2.0 },
-];
-
-/* ─── charts ─── */
-// const aumChart = {
-//   labels: aumRaw.map((d) => d.month),
-//   datasets: [
-//     {
-//       label: "AUM",
-//       data: aumRaw.map((d) => d.value),
-//       fill: true,
-//       backgroundColor: "rgba(59,130,246,0.15)",
-//       borderColor: "#3b82f6",
-//       tension: 0.35,
-//       pointRadius: 0,
-//     },
-//   ],
-// };
-// const navChart = {
-//   labels: navRaw.map((d) => d.month),
-//   datasets: [
-//     {
-//       label: "NAV Value Totals",
-//       data: navRaw.map((d) => d.nav),
-//       backgroundColor: "#3b82f6",
-//       borderRadius: 3,
-//     },
-//     {
-//       label: "Dividends",
-//       data: navRaw.map((d) => d.dividend),
-//       backgroundColor: "#22c55e",
-//       borderRadius: 3,
-//     },
-//   ],
-// };
-
 /* ─── Helper styles ─────────────────────────────────── */
 const chartBox = "relative w-full h-[300px]";
 
@@ -91,16 +40,18 @@ export default function DashboardPage() {
     { investor_name: string; nav_delta: string }[]
   >([]);
   const [redempSum, setRedempSum] = useState<number | null>(null);
+  const [navRows, setNavRows] = useState<
+    { period: string; nav: string; dividend: string }[]
+  >([]);
 
   /* -------- fetch both endpoints once ----------------------- */
   useEffect(() => {
     (async () => {
       try {
-        const [ncRes, urRes] = await Promise.all([
+        const [ncRes, urRes, ndRes] = await Promise.all([
           fetch(`${API_BASE}/dashboard/net-cash`, { credentials: "include" }),
-          fetch(`${API_BASE}/dashboard/unsettled-redemption`, {
-            credentials: "include",
-          }),
+          fetch(`${API_BASE}/dashboard/unsettled-redemption`, { credentials: "include" }),
+          fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`, { credentials: "include" }),
         ]);
 
         /* --- Net-cash --------------------------------------- */
@@ -116,12 +67,11 @@ export default function DashboardPage() {
         const urRows: { investor_name: string; nav_delta: string }[] =
           await urRes.json();
         setRedempRows(urRows);
+        setRedempSum(urRows.reduce((acc: number, r: any) => acc + Math.abs(+r.nav_delta), 0));
 
-        const sum = urRows.reduce(
-          (acc, r) => acc + Math.abs(Number(r.nav_delta)),
-          0,
-        );
-        setRedempSum(sum);
+        /* --- NAV + Dividend rows ------------------------------ */
+        setNavRows(await ndRes.json());
+
       } catch (err) {
         console.error("Dashboard fetch error:", err);
       }
@@ -137,6 +87,26 @@ export default function DashboardPage() {
   const redempPct =
     latestCashNumber && redempSum ? (redempSum / latestCashNumber) * 100 : null;
     
+  /* -------- Top-5 redemption rows ----------------------------- */
+  const top5Redemptions = useMemo(() => {
+    if (!redempRows.length || !latestCashNumber) return [];
+
+    return [...redempRows]
+      .sort(
+        (a, b) => Math.abs(+b.nav_delta) - Math.abs(+a.nav_delta),
+      )
+      .slice(0, 5)
+      .map((r) => {
+        const amountAbs = Math.abs(+r.nav_delta);
+        const pctOfCash = +(amountAbs / latestCashNumber * 100).toFixed(1);
+        return {
+          investor: r.investor_name,
+          amount: amountAbs,
+          percentage: pctOfCash,
+        };
+      });
+  }, [redempRows, latestCashNumber]);
+
   /* -------- Net-cash line chart ----------------------------- */
   const netCashChart = useMemo(() => {
     if (!netCashHistory.length) return { labels: [], datasets: [] };
@@ -162,24 +132,28 @@ export default function DashboardPage() {
     };
   }, [netCashHistory]);
 
-  /* -------- NAV vs Dividend bar chart ----------------------- */
-  const navChart = {
-    labels: navRaw.map((d) => d.month),
-    datasets: [
-      {
-        label: "NAV Value Totals",
-        data: navRaw.map((d) => d.nav),
-        backgroundColor: "#3b82f6",
-        borderRadius: 3,
-      },
-      {
-        label: "Dividends",
-        data: navRaw.map((d) => d.dividend),
-        backgroundColor: "#22c55e",
-        borderRadius: 3,
-      },
-    ],
-  };
+  /* -------- NAV/Dividend bar-chart ---------------------------- */
+  const navChart = useMemo(() => {
+    if (!navRows.length) return { labels: [], datasets: [] };
+
+    return {
+      labels: navRows.map((r) => r.period), 
+      datasets: [
+        {
+          label: "NAV Value Totals",
+          data: navRows.map((r) => Number(r.nav)),
+          backgroundColor: "#3b82f6",
+          borderRadius: 3,
+        },
+        {
+          label: "Dividends",
+          data: navRows.map((r) => Number(r.dividend)),
+          backgroundColor: "#22c55e",
+          borderRadius: 3,
+        },
+      ],
+    };
+  }, [navRows]);
 
   return (
     <div className="p-6 space-y-6">
@@ -331,7 +305,7 @@ export default function DashboardPage() {
             {/* progress list (demo) */}
             <div className="lg:col-span-2 space-y-4">
               <h4 className="font-medium">Top 5 Redemption Requests</h4>
-              {redeemDemo.map((row) => (
+              {top5Redemptions.map((row) => (
                 <div key={row.investor} className="space-y-1">
                   <div className="flex justify-between text-sm">
                     <span className="font-medium">{row.investor}</span>
@@ -340,7 +314,7 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <Progress
-                    value={row.percentage * 4}
+                    value={row.percentage}
                     className="h-2 [&>div[role=progressbar]]:bg-blue-500"
                   />
                 </div>

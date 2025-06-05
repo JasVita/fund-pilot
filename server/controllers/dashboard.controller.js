@@ -49,11 +49,22 @@ exports.netCash = async (_req, res) => {
 /**
  * GET  /dashboard/nav-value-totals-vs-div
  * Calls: get_nav_dividend_last6m()
+ * Returns [{ period:"YYYY-MM", nav:1234.56, dividend:789.01 }, …]
  */
 exports.navVsDiv = async (_req, res) => {
   try {
-    const { rows } = await pool.query("SELECT * FROM get_nav_dividend_last6m();");
+    // const { rows } = await pool.query("SELECT * FROM get_nav_dividend_last6m();");
+    // res.json(rows);
+    const { rows } = await pool.query(`
+      SELECT
+        to_char(month_start, 'YYYY-MM')   AS period,
+        nav_total                          AS nav,
+        COALESCE(dividend_total, 0)        AS dividend
+      FROM   get_nav_dividend_last6m()
+      ORDER  BY month_start
+    `);
     res.json(rows);
+    
   } catch (err) {
     console.error("navVsDiv:", err);
     res.status(500).json({ error: err.message });
