@@ -1,13 +1,15 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { LucideIcon } from "lucide-react";
+import { ReactNode } from "react";
 
 interface KPICardProps {
   title: string;
-  value: string;
+  value: ReactNode;
   change?: string;                           // e.g. "+12.5%" or "-4.2%"
   changeType?: "positive" | "negative" | "neutral";
   icon: LucideIcon;
   description?: string;
+  dimmed?: boolean;
 }
 
 function KPICard({
@@ -17,6 +19,7 @@ function KPICard({
   changeType,
   icon: Icon,
   description,
+  dimmed = false,
 }: KPICardProps) {
   /* ─ colour logic (unchanged) ─ */
   const inferred =
@@ -36,7 +39,7 @@ function KPICard({
 
   /* -------------------------------------------------------- */
   return (
-    <Card className="transition-all duration-200 hover:shadow-md">
+    <Card className={`transition-all duration-200 hover:shadow-md ${dimmed ? "bg-muted/100" : ""}`}>
       <CardContent className="px-6">
         <div className="flex items-start gap-2">
           

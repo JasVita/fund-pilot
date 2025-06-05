@@ -1,82 +1,30 @@
 "use client";
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useEffect, useState, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";   
 import { KPICard } from "./KPICard";        
-import {
-  Download,
-  Filter,
-  Calendar,
-  DollarSign,
-  TrendingUp,
-  AlertTriangle,
-} from "lucide-react";
+import { Download, Filter, Calendar, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
 
 import { Line, Bar, Doughnut } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,        //  ← doughnut slices
-  Tooltip,
-  Legend,
-  Filler,
-} from "chart.js";
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler } from "chart.js";
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Tooltip,
-  Legend,
-  Filler
-);
+ChartJS.register( CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler );
 
-/* ─── Helper — compact US-dollar formatter ─── */
-const formatCurrency = (v: number) =>
+/* ─── global API base (env-aware) ─────────────────────────── */
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
+
+/* ─── money formatter ─────────────────────────────────────── */
+const usdCompact = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    notation: "compact",
+    minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(v);
 
-
-/* ─── Raw data (your preferred “dictionary” arrays) ─── */
-const aumRaw = [
-  { month: "Jan", value: 125 },
-  { month: "Feb", value: 128 },
-  { month: "Mar", value: 132 },
-  { month: "Apr", value: 129 },
-  { month: "May", value: 135 },
-  { month: "Jun", value: 142 },
-  { month: "Jul", value: 138 },
-  { month: "Aug", value: 145 },
-  { month: "Sep", value: 148 },
-  { month: "Oct", value: 152 },
-  { month: "Nov", value: 155 },
-  { month: "Dec", value: 158 },
-];
 
 const navRaw = [
   { month: "Jan", nav: 2.4, dividend: 0.8 },
@@ -87,7 +35,7 @@ const navRaw = [
   { month: "Jun", nav: 4.2, dividend: 1.3 },
 ];
 
-const redeemRaw = [
+const redeemDemo = [
   { investor: "Pension Fund Alpha", amount: 12.5, percentage: 8.2 },
   { investor: "Insurance Corp Beta", amount: 8.8, percentage: 5.7 },
   { investor: "Endowment Gamma", amount: 6.3, percentage: 4.1 },
@@ -96,43 +44,143 @@ const redeemRaw = [
 ];
 
 /* ─── charts ─── */
-const aumChart = {
-  labels: aumRaw.map((d) => d.month),
-  datasets: [
-    {
-      label: "AUM",
-      data: aumRaw.map((d) => d.value),
-      fill: true,
-      backgroundColor: "rgba(59,130,246,0.15)",
-      borderColor: "#3b82f6",
-      tension: 0.35,
-      pointRadius: 0,
-    },
-  ],
-};
-const navChart = {
-  labels: navRaw.map((d) => d.month),
-  datasets: [
-    {
-      label: "NAV Value Totals",
-      data: navRaw.map((d) => d.nav),
-      backgroundColor: "#3b82f6",
-      borderRadius: 3,
-    },
-    {
-      label: "Dividends",
-      data: navRaw.map((d) => d.dividend),
-      backgroundColor: "#22c55e",
-      borderRadius: 3,
-    },
-  ],
-};
+// const aumChart = {
+//   labels: aumRaw.map((d) => d.month),
+//   datasets: [
+//     {
+//       label: "AUM",
+//       data: aumRaw.map((d) => d.value),
+//       fill: true,
+//       backgroundColor: "rgba(59,130,246,0.15)",
+//       borderColor: "#3b82f6",
+//       tension: 0.35,
+//       pointRadius: 0,
+//     },
+//   ],
+// };
+// const navChart = {
+//   labels: navRaw.map((d) => d.month),
+//   datasets: [
+//     {
+//       label: "NAV Value Totals",
+//       data: navRaw.map((d) => d.nav),
+//       backgroundColor: "#3b82f6",
+//       borderRadius: 3,
+//     },
+//     {
+//       label: "Dividends",
+//       data: navRaw.map((d) => d.dividend),
+//       backgroundColor: "#22c55e",
+//       borderRadius: 3,
+//     },
+//   ],
+// };
 
 /* ─── Helper styles ─────────────────────────────────── */
-const chartBoxClass = "relative w-full h-[300px]";
+const chartBox = "relative w-full h-[300px]";
 
 /* ─── Component ─────────────────────────────────────── */
-export default function Page() {
+export default function DashboardPage() {
+  /* -------- state ------------------------------------------- */
+  const [netCashLatest, setNetCashLatest] = useState<string>("—");
+  const [netCashHistory, setNetCashHistory] = useState<
+    { month_start: string; closing_avail: string }[]
+  >([]);
+
+  const [redempRows, setRedempRows] = useState<
+    { investor_name: string; nav_delta: string }[]
+  >([]);
+  const [redempSum, setRedempSum] = useState<number | null>(null);
+
+  /* -------- fetch both endpoints once ----------------------- */
+  useEffect(() => {
+    (async () => {
+      try {
+        const [ncRes, urRes] = await Promise.all([
+          fetch(`${API_BASE}/dashboard/net-cash`, { credentials: "include" }),
+          fetch(`${API_BASE}/dashboard/unsettled-redemption`, {
+            credentials: "include",
+          }),
+        ]);
+
+        /* --- Net-cash --------------------------------------- */
+        const ncJson: {
+          latest: number | null;
+          history: { month_start: string; closing_avail: string }[];
+        } = await ncRes.json();
+
+        if (ncJson.latest != null) setNetCashLatest(usdCompact(ncJson.latest));
+        setNetCashHistory(ncJson.history);
+
+        /* --- Unsettled redemptions -------------------------- */
+        const urRows: { investor_name: string; nav_delta: string }[] =
+          await urRes.json();
+        setRedempRows(urRows);
+
+        const sum = urRows.reduce(
+          (acc, r) => acc + Math.abs(Number(r.nav_delta)),
+          0,
+        );
+        setRedempSum(sum);
+      } catch (err) {
+        console.error("Dashboard fetch error:", err);
+      }
+    })();
+  }, []);
+
+  /* -------- derived metrics --------------------------------- */
+  const pendingCount = redempRows.length;
+  const redempValue = redempSum != null ? usdCompact(redempSum) : "—";
+  const latestCashNumber = netCashHistory[0]
+    ? Number(netCashHistory[0].closing_avail)
+    : null;
+  const redempPct =
+    latestCashNumber && redempSum ? (redempSum / latestCashNumber) * 100 : null;
+    
+  /* -------- Net-cash line chart ----------------------------- */
+  const netCashChart = useMemo(() => {
+    if (!netCashHistory.length) return { labels: [], datasets: [] };
+
+    const ordered = [...netCashHistory].sort(
+      (a, b) =>
+        new Date(a.month_start).getTime() - new Date(b.month_start).getTime(),
+    );
+
+    return {
+      labels: ordered.map((r) => r.month_start.slice(0, 7)), // YYYY-MM
+      datasets: [
+        {
+          label: "Net Cash",
+          data: ordered.map((r) => Number(r.closing_avail)),
+          fill: true,
+          backgroundColor: "rgba(59,130,246,0.15)",
+          borderColor: "#3b82f6",
+          tension: 0.35,
+          pointRadius: 0,
+        },
+      ],
+    };
+  }, [netCashHistory]);
+
+  /* -------- NAV vs Dividend bar chart ----------------------- */
+  const navChart = {
+    labels: navRaw.map((d) => d.month),
+    datasets: [
+      {
+        label: "NAV Value Totals",
+        data: navRaw.map((d) => d.nav),
+        backgroundColor: "#3b82f6",
+        borderRadius: 3,
+      },
+      {
+        label: "Dividends",
+        data: navRaw.map((d) => d.dividend),
+        backgroundColor: "#22c55e",
+        borderRadius: 3,
+      },
+    ],
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header controls */}
@@ -174,19 +222,21 @@ export default function Page() {
       {/* KPI cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* <KPICard title="Net Cash" value="$158.2M" change="+12.5%" changeType="positive" description="vs previous period" icon={DollarSign} /> */}
-        <KPICard title="Net Cash" value="$158.2M" change="" changeType="neutral" description="" icon={DollarSign} />
-        <KPICard title="MoM P&L" value="+8.7%" change="+2.3% vs avg" changeType="positive" description="Month over month" icon={TrendingUp} />
-        <KPICard title="Unsettled Redemptions" value="$35.0M" change="15 pending" changeType="neutral" description="Awaiting settlement" icon={AlertTriangle} />
+        <KPICard title="Net Cash" value={netCashLatest} change="" changeType="neutral" description="" icon={DollarSign} />
+        <KPICard title="MoM P&L(Greyed for mockup only)" value="+8.7%" change="+2.3% vs avg" changeType="positive" description="Month over month" icon={TrendingUp} dimmed />
+        <KPICard title="Unsettled Redemptions" value={<span className="text-red-600">{redempValue}</span>} change={`${pendingCount} pending`} changeType="neutral" description="Awaiting settlement" icon={AlertTriangle} />
       </div>
 
-      {/* AUM & NAV charts */}
+      {/* charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><CardTitle>$ Net Cash Trend</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>$ Net Cash Trend</CardTitle>
+          </CardHeader>
           <CardContent>
-            <div className={chartBoxClass}>
+            <div className={chartBox}>
               <Line
-                data={aumChart}
+                data={netCashChart}
                 options={{
                   responsive: true,
                   maintainAspectRatio: false,
@@ -205,9 +255,11 @@ export default function Page() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>NAV Value Totals vs Dividends</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>NAV Value Totals vs Dividends</CardTitle>
+          </CardHeader>
           <CardContent>
-            <div className={chartBoxClass}>
+            <div className={chartBox}>
               <Bar
                 data={navChart}
                 options={{
@@ -225,18 +277,21 @@ export default function Page() {
         </Card>
       </div>
 
-      {/* Outstanding Redemptions */}
+      {/* Outstanding Redemptions widget */}
       <Card>
         <CardHeader className="flex items-center justify-between">
           <CardTitle className="text-lg">Outstanding Redemptions</CardTitle>
-          <Badge variant="outline" className="text-destructive border-destructive">
-            22.1% of Net Cash
+          <Badge
+            variant="outline"
+            className="text-destructive border-destructive"
+          >
+            {redempPct ? `${redempPct.toFixed(1)}% of Net Cash` : "—"}
           </Badge>
         </CardHeader>
 
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* gauge doughnut */}
+            {/* gauge */}
             <div className="flex flex-col items-center justify-center">
               <div className="relative w-36 h-36">
                 <Doughnut
@@ -244,11 +299,11 @@ export default function Page() {
                     labels: ["Outstanding", "Remaining"],
                     datasets: [
                       {
-                        data: [22.1, 77.9],
-                        backgroundColor: [
-                          "#ef4444",
-                          "#e5e7eb",
+                        data: [
+                          redempPct ?? 0,
+                          redempPct != null ? 100 - redempPct : 100,
                         ],
+                        backgroundColor: ["#ef4444", "#e5e7eb"],
                         borderWidth: 0,
                       },
                     ],
@@ -263,24 +318,25 @@ export default function Page() {
                   }}
                 />
                 <span className="absolute inset-0 flex items-center justify-center text-destructive font-bold text-2xl">
-                  22.1%
+                  {redempPct ? `${redempPct.toFixed(1)}%` : "—"}
                 </span>
               </div>
               <p className="mt-4 text-sm text-center text-muted-foreground">
-                Total Outstanding<br />
-                <span className="font-medium">$35.0M</span>
+                Total Outstanding
+                <br />
+                <span className="font-medium">{redempValue}</span>
               </p>
             </div>
 
-            {/* progress bars */}
+            {/* progress list (demo) */}
             <div className="lg:col-span-2 space-y-4">
               <h4 className="font-medium">Top 5 Redemption Requests</h4>
-              {redeemRaw.map((row) => (
+              {redeemDemo.map((row) => (
                 <div key={row.investor} className="space-y-1">
                   <div className="flex justify-between text-sm">
                     <span className="font-medium">{row.investor}</span>
                     <span className="text-destructive">
-                      {formatCurrency(row.amount)} ({row.percentage}%)
+                      {usdCompact(row.amount)} ({row.percentage}%)
                     </span>
                   </div>
                   <Progress
@@ -294,7 +350,7 @@ export default function Page() {
         </CardContent>
       </Card>
 
-      {/* Footer */}
+      {/* footer */}
       <footer className="flex justify-between text-sm text-muted-foreground">
         <span>Last file processed: NAV_2024_12_03.xlsx • 2 errors found</span>
         <span>Last updated: {new Date().toLocaleString()}</span>
@@ -302,143 +358,3 @@ export default function Page() {
     </div>
   );
 }
-
-
-
-
-// "use client";
-
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-// import { Button } from "@/components/ui/button";
-// import { Download } from "lucide-react";
-// import { Line, Bar, Doughnut } from "react-chartjs-2";
-// import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Title, Filler } from "chart.js";
-
-// ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Title, Filler);
-
-// export default function Page() {
-//   return (
-//     <div className="flex flex-col gap-6 p-4">
-
-//       {/* Header */}
-//       <div className="flex items-center justify-between gap-4">
-//         <div className="flex gap-4">
-//           <Select defaultValue="1-month">
-//             <SelectTrigger className="w-[180px]">
-//               <SelectValue placeholder="Select period" />
-//             </SelectTrigger>
-//             <SelectContent>
-//               <SelectItem value="1-month">1 Month</SelectItem>
-//               <SelectItem value="3-month">3 Months</SelectItem>
-//               <SelectItem value="6-month">6 Months</SelectItem>
-//               <SelectItem value="12-month">12 Months</SelectItem>
-//               <SelectItem value="ytd">YTD</SelectItem>
-//             </SelectContent>
-//           </Select>
-
-//           <Select defaultValue="all">
-//             <SelectTrigger className="w-[180px]">
-//               <SelectValue placeholder="Select fund type" />
-//             </SelectTrigger>
-//             <SelectContent>
-//               <SelectItem value="all">All Funds</SelectItem>
-//               <SelectItem value="equity">Equity Funds</SelectItem>
-//               <SelectItem value="bond">Bond Funds</SelectItem>
-//               <SelectItem value="hybrid">Hybrid Funds</SelectItem>
-//             </SelectContent>
-//           </Select>
-//         </div>
-//         <Button variant="outline">
-//           <Download className="h-4 w-4 mr-2" /> Export Report
-//         </Button>
-//       </div>
-
-//       {/* Cards */}
-//       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-//         {[
-//           { title: "Net Cash", value: "$120,000" },
-//           { title: "PnL", value: "$15,400" },
-//           { title: "Unsettled Redemptions", value: "$8,500" },
-//         ].map((card) => (
-//           <Card key={card.title}>
-//             <CardHeader>
-//               <CardTitle>{card.title}</CardTitle>
-//             </CardHeader>
-//             <CardContent>
-//               <span className="text-2xl font-bold">{card.value}</span>
-//             </CardContent>
-//           </Card>
-//         ))}
-//       </div>
-
-//       {/* Charts */}
-//       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-//         <Card>
-//           <CardHeader>
-//             <CardTitle>AUM Trend</CardTitle>
-//           </CardHeader>
-//           <CardContent>
-//             <Line
-//               data={{
-//                 labels: ["Jan", "Feb", "Mar", "Apr", "May"],
-//                 datasets: [{
-//                   label: "AUM",
-//                   data: [100, 120, 115, 130, 125],
-//                   fill: true,
-//                   backgroundColor: "rgba(75, 192, 192, 0.2)",
-//                   borderColor: "rgba(75, 192, 192, 1)",
-//                   tension: 0.4,
-//                 }],
-//               }}
-//             />
-//           </CardContent>
-//         </Card>
-//         <Card>
-//           <CardHeader>
-//             <CardTitle>NAV Value Total vs Dividends</CardTitle>
-//           </CardHeader>
-//           <CardContent>
-//             <Bar
-//               data={{
-//                 labels: ["Jan", "Feb", "Mar", "Apr", "May"],
-//                 datasets: [
-//                   { label: "NAV Change", data: [5, -2, 4, -1, 3], backgroundColor: "rgba(153, 102, 255, 0.6)" },
-//                   { label: "Dividends", data: [1, 1, 1, 2, 1.5], backgroundColor: "rgba(255, 159, 64, 0.6)" },
-//                 ],
-//               }}
-//             />
-//           </CardContent>
-//         </Card>
-//       </div>
-
-//       {/* Outstanding Redemption */}
-//       <Card>
-//         <CardHeader>
-//           <CardTitle>Outstanding Redemptions</CardTitle>
-//         </CardHeader>
-//         <CardContent className="grid md:grid-cols-2 gap-4">
-//           <Doughnut
-//             data={{
-//               labels: ["Processed", "Pending"],
-//               datasets: [{ data: [60, 40], backgroundColor: ["#22c55e", "#ef4444"] }],
-//             }}
-//           />
-//           <div className="space-y-2">
-//             {["Fund A - 40%", "Fund B - 25%", "Fund C - 15%", "Fund D - 10%", "Fund E - 10%"].map((item) => (
-//               <div key={item} className="w-full bg-muted rounded-full overflow-hidden">
-//                 <div className="bg-primary py-1 px-2 text-sm font-semibold text-white" style={{ width: item.split(" - ")[1] }}>{item}</div>
-//               </div>
-//             ))}
-//           </div>
-//         </CardContent>
-//       </Card>
-
-//       {/* Footer */}
-//       <footer className="flex justify-between text-sm text-muted-foreground">
-//         <div>Last file: Portfolio_0524.csv</div>
-//         <div>Updated: 2024-06-03 10:15 AM</div>
-//       </footer>
-//     </div>
-//   );
-// }

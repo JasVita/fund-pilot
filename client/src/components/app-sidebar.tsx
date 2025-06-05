@@ -33,9 +33,9 @@ import {
 // This is sample data.
 const data = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    name: "Nick Wong",
+    email: "nick@turoid.ai",
+    avatar: "/nick_linkedin.jpeg",
   },
   teams: [
     {
@@ -43,16 +43,16 @@ const data = {
       logo: GalleryVerticalEnd,
       plan: "Enterprise",
     },
-    {
-      name: "Acme Corp.",
-      logo: AudioWaveform,
-      plan: "Startup",
-    },
-    {
-      name: "Evil Corp.",
-      logo: Command,
-      plan: "Free",
-    },
+    // {
+    //   name: "Acme Corp.",
+    //   logo: AudioWaveform,
+    //   plan: "Startup",
+    // },
+    // {
+    //   name: "Evil Corp.",
+    //   logo: Command,
+    //   plan: "Free",
+    // },
   ],
   navMain: [
     {
