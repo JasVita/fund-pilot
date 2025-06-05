@@ -25,6 +25,7 @@ exports.netCash = async (_req, res) => {
   try {
     // 12-month history for the default account
     const { rows } = await pool.query(
+      // "SELECT * FROM get_closing_available_balance(233569-20010, 12);",
       "SELECT * FROM get_closing_available_balance($1, 12);",
       [defaultAccount]
     );

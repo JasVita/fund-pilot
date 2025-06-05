@@ -41,7 +41,7 @@ export default function InvestorsPage() {
     (async () => {
       try {
         const r = await fetch(`${API_BASE}/investors/portfolio?page=${page}`, {
-          credentials: "include",
+          // credentials: "include",
         });
         const j: { page:number; pageCount:number; rows:Investor[] } = await r.json();
         setRows(j.rows);

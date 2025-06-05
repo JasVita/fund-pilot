@@ -60,9 +60,12 @@ export default function DashboardPage() {
     (async () => {
       try {
         const [ncRes, urRes, ndRes] = await Promise.all([
-          fetch(`${API_BASE}/dashboard/net-cash`, { credentials: "include" }),
-          fetch(`${API_BASE}/dashboard/unsettled-redemption`, { credentials: "include" }),
-          fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`, { credentials: "include" }),
+          // fetch(`${API_BASE}/dashboard/net-cash`, { credentials: "include" }),
+          // fetch(`${API_BASE}/dashboard/unsettled-redemption`, { credentials: "include" }),
+          // fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`, { credentials: "include" }),
+          fetch(`${API_BASE}/dashboard/net-cash`),
+          fetch(`${API_BASE}/dashboard/unsettled-redemption`),
+          fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`),
         ]);
 
         /* --- Net-cash --------------------------------------- */
