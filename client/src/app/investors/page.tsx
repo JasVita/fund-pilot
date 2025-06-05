@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { DollarSign, Banknote } from "lucide-react"; 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -10,12 +11,12 @@ import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, Pagi
 /* ---- helpers ----------------------------------------------------- */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
 
-const usd = (v: number) =>
+const usd = (v: number, compact = false) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
+    notation: compact ? "compact" : "standard",
+    maximumFractionDigits: compact ? 1 : 2,
   }).format(v);
 
 /* ---- types ------------------------------------------------------- */
@@ -114,7 +115,7 @@ export default function InvestorsPage() {
                     <TableCell className="font-mono">
                       {inv.unpaid_redeem !== null
                         ? <span className="text-destructive">{usd(inv.unpaid_redeem)}</span>
-                        : "-" }
+                        : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell>
                       <Badge variant={inv.status === "active" ? "default" : "outline"}>
@@ -169,21 +170,26 @@ export default function InvestorsPage() {
             <SheetTitle>{selected?.investor}</SheetTitle>
           </SheetHeader>
           {selected && (
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-4 p-6 mx-2">
+              
               <Card>
                 <CardContent className="p-4 space-y-1">
                   <p className="text-sm text-muted-foreground">Current NAV</p>
                   <p className="text-xl font-bold">{usd(selected.current_nav)}</p>
                 </CardContent>
               </Card>
+
               <Card>
                 <CardContent className="p-4 space-y-1">
                   <p className="text-sm text-muted-foreground">Unpaid Redeem</p>
-                  <p className={`text-xl font-bold ${selected.unpaid_redeem ? "text-destructive" : ""}`}>
+                  <p className={`text-xl font-bold ${
+                        selected.unpaid_redeem ? "text-destructive" : "text-muted-foreground"
+                      }`}>
                     {selected.unpaid_redeem ? usd(selected.unpaid_redeem) : "—"}
                   </p>
                 </CardContent>
               </Card>
+              
             </div>
           )}
         </SheetContent>

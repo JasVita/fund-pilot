@@ -3,51 +3,69 @@ const { pool } = require("../config/db");
 
 /* ------------------------------------------------------------------ *
  * GET /investors/portfolio
- * ?page=1            —  20 rows per page, ordered so that
- *                       “active” investors come first (A-Z),
- *                       followed by “inactive” (A-Z)
- *
- * Response: { page, pageCount, rows:[…≤20] }
+ * ------------------------------------------------------------------ *
+ * • 20 rows per page
+ * • active  → inactive-with-redeem  → other-inactive
+ * • Response: { page, pageCount, rows:[…≤20] }
  * ------------------------------------------------------------------ */
 exports.portfolioOverview = async (req, res) => {
   const LIMIT = 20;
   const page  = Math.max(1, parseInt(req.query.page ?? "1", 10));
-  const lo    = (page - 1) * LIMIT + 1;      // row_num lower bound
-  const hi    = page * LIMIT;                // row_num upper bound
+  const lo    = (page - 1) * LIMIT + 1;
+  const hi    = page * LIMIT;
 
   try {
-    /* ---------- total row count (to build pageCount) ---------------- */
+    /* ---------- pageCount (same as before) ------------------------- */
     const { rows: [{ total }] } = await pool.query(`
       SELECT COUNT(*)::int AS total
       FROM   get_latest_snapshot_detail();
     `);
     const pageCount = Math.max(1, Math.ceil(total / LIMIT));
 
-    /* ---------- fetch requested page -------------------------------- */
+    /* ---------- page slice ---------------------------------------- */
     const { rows } = await pool.query(`
-        WITH ranked AS (
-            SELECT
-            investor_name           AS investor,
-            class,
-            number_held,
-            nav_value               AS current_nav,
-            NULL::numeric           AS unpaid_redeem,   -- ← placeholder
-            status,
-            ROW_NUMBER() OVER (
-                ORDER BY (status = 'active') DESC, investor_name
-            )                       AS row_num
-            FROM get_latest_snapshot_detail()
+      WITH
+        latest AS (
+          SELECT *
+          FROM   get_latest_snapshot_detail()
+        ),
+        redeem AS (
+          SELECT
+            investor_name,
+            ABS(nav_delta)::numeric AS unpaid_redeem
+          FROM   get_unsettled_redeem_6m()
+        ),
+        combined AS (
+          SELECT
+            l.investor_name                  AS investor,
+            l.class,
+            l.number_held,
+            l.nav_value                      AS current_nav,
+            r.unpaid_redeem,                 -- NULL if none
+            l.status
+          FROM   latest l
+          LEFT   JOIN redeem r USING (investor_name)
+        ),
+        ranked AS (
+          SELECT *,
+                 ROW_NUMBER() OVER (
+                   ORDER BY
+                     (status = 'active')         DESC,  -- 1️⃣ actives
+                     (unpaid_redeem IS NOT NULL) DESC,  -- 2️⃣ inactive w/ redeem
+                     investor                             -- 3️⃣ alphabetical
+                 ) AS row_num
+          FROM combined
         )
-        SELECT investor,
-                class,
-                number_held,
-                current_nav,
-                unpaid_redeem,
-                status
-        FROM   ranked
-        WHERE  row_num BETWEEN $1 AND $2
-        ORDER  BY row_num;
-        `, [lo, hi]);
+      SELECT investor,
+             class,
+             number_held,
+             current_nav,
+             unpaid_redeem,
+             status
+      FROM   ranked
+      WHERE  row_num BETWEEN $1 AND $2
+      ORDER  BY row_num;
+    `, [lo, hi]);
 
     res.json({ page, pageCount, rows });
   } catch (err) {
