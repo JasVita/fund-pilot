@@ -27,6 +27,19 @@ const usdCompact = (v: number) =>
 /* ─── Helper styles ─────────────────────────────────── */
 const chartBox = "relative w-full h-[300px]";
 
+const usdAxis = (v: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,  // whole-dollar ticks
+    notation: "compact",       // "12.3M" / "876K" / "45K"
+  }).format(v);
+
+type UnsettledRow = {
+  investor_name: string;
+  nav_delta: string;      // negative number as a string
+  snapshot_date: string;  // e.g. "2025-01-28T00:00:00.000Z"
+};
 /* ─── Component ─────────────────────────────────────── */
 export default function DashboardPage() {
   /* -------- state ------------------------------------------- */
@@ -35,9 +48,8 @@ export default function DashboardPage() {
     { month_start: string; closing_avail: string }[]
   >([]);
 
-  const [redempRows, setRedempRows] = useState<
-    { investor_name: string; nav_delta: string }[]
-  >([]);
+  const [redempRows, setRedempRows] = useState<UnsettledRow[]>([]);
+
   const [redempSum, setRedempSum] = useState<number | null>(null);
   const [navRows, setNavRows] = useState<
     { period: string; nav: string; dividend: string }[]
@@ -63,8 +75,7 @@ export default function DashboardPage() {
         setNetCashHistory(ncJson.history);
 
         /* --- Unsettled redemptions -------------------------- */
-        const urRows: { investor_name: string; nav_delta: string }[] =
-          await urRes.json();
+        const urRows: UnsettledRow[] = await urRes.json();
         setRedempRows(urRows);
         setRedempSum(urRows.reduce((acc: number, r: any) => acc + Math.abs(+r.nav_delta), 0));
 
@@ -102,6 +113,7 @@ export default function DashboardPage() {
           investor: r.investor_name,
           amount: amountAbs,
           percentage: pctOfCash,
+          date: r.snapshot_date.slice(0, 7),
         };
       });
   }, [redempRows, latestCashNumber]);
@@ -213,11 +225,42 @@ export default function DashboardPage() {
                 options={{
                   responsive: true,
                   maintainAspectRatio: false,
-                  plugins: { legend: { display: false } },
+
+                  /* --- interaction: allow hovering anywhere vertically --- */
+                  interaction: { mode: "index", intersect: false },
+
+                  plugins: {
+                    legend: { display: false },
+
+                    tooltip: {
+                      enabled: true,
+                      backgroundColor: "rgba(31,41,55,0.9)",  // Tailwind gray-800 @ 90 %
+                      titleFont: { weight: 600 },
+                      padding: 10,
+                      callbacks: {
+                        /* yyyy-MM as title */
+                        title: (ctx) => ctx[0].label,
+
+                        /* format the Y value as USD */
+                        label: (ctx) => ` ${usdCompact(ctx.parsed.y)}`,
+                      },
+                    },
+                  },
+
                   scales: {
                     x: { grid: { display: false } },
+
                     y: {
-                      ticks: { callback: () => "" },
+                      ticks: {
+                        callback: (value) => usdAxis(Number(value)),
+                        padding: 6,
+                      },
+                      title: {
+                        display: true,
+                        text: "USD",
+                        font: { weight: 600 },
+                        color: "#6b7280",
+                      },
                       grid: { color: "rgba(0,0,0,0.05)" },
                     },
                   },
@@ -307,7 +350,14 @@ export default function DashboardPage() {
               {top5Redemptions.map((row) => (
                 <div key={row.investor} className="space-y-1">
                   <div className="flex justify-between text-sm">
-                    <span className="font-medium">{row.investor}</span>
+                    {/* <span className="font-medium">{row.investor}</span> */}
+                    <span className="font-medium flex items-center gap-2">
+                      {row.investor}
+                      <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                        {row.date}
+                      </Badge>
+                    </span>
+                    
                     <span className="text-destructive">
                       {usdCompact(row.amount)} ({row.percentage}%)
                     </span>

@@ -110,7 +110,7 @@ export default function InvestorsPage() {
                       {inv.number_held ?? <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="font-mono">
-                      {usd(inv.current_nav)}
+                      {usd(inv.current_nav)} {/* {usd(inv.current_nav, true)} table cell — compact */} 
                     </TableCell>
                     <TableCell className="font-mono">
                       {inv.unpaid_redeem !== null
