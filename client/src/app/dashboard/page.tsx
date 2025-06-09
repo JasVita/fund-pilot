@@ -4,16 +4,37 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";   
-import { KPICard } from "./KPICard";        
+import { Badge } from "@/components/ui/badge";
+import { KPICard } from "./KPICard";
 import { Download, Filter, Calendar, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
 
 import { Line, Bar, Doughnut } from "react-chartjs-2";
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler } from "chart.js";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Tooltip,
+  Legend,
+  Filler,
+} from "chart.js";
 
-ChartJS.register( CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler );
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Tooltip,
+  Legend,
+  Filler
+);
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
 
 /* ─── money formatter ─────────────────────────────────────── */
 const usdCompact = (v: number) =>
@@ -31,29 +52,25 @@ const usdAxis = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0,  // whole-dollar ticks
-    notation: "compact",       // "12.3M" / "876K" / "45K"
+    maximumFractionDigits: 0, // whole-dollar ticks
+    notation: "compact", // "12.3M" / "876K" / "45K"
   }).format(v);
 
 type UnsettledRow = {
   investor_name: string;
-  nav_delta: string;      // negative number as a string
-  snapshot_date: string;  // e.g. "2025-01-28T00:00:00.000Z"
+  nav_delta: string; // negative number as a string
+  snapshot_date: string; // e.g. "2025-01-28T00:00:00.000Z"
 };
 /* ─── Component ─────────────────────────────────────── */
 export default function DashboardPage() {
   /* -------- state ------------------------------------------- */
   const [netCashLatest, setNetCashLatest] = useState<string>("—");
-  const [netCashHistory, setNetCashHistory] = useState<
-    { month_start: string; closing_avail: string }[]
-  >([]);
+  const [netCashHistory, setNetCashHistory] = useState<{ month_start: string; closing_avail: string }[]>([]);
 
   const [redempRows, setRedempRows] = useState<UnsettledRow[]>([]);
 
   const [redempSum, setRedempSum] = useState<number | null>(null);
-  const [navRows, setNavRows] = useState<
-    { period: string; nav: string; dividend: string }[]
-  >([]);
+  const [navRows, setNavRows] = useState<{ period: string; nav: string; dividend: string }[]>([]);
 
   /* -------- fetch both endpoints once ----------------------- */
   useEffect(() => {
@@ -84,7 +101,6 @@ export default function DashboardPage() {
 
         /* --- NAV + Dividend rows ------------------------------ */
         setNavRows(await ndRes.json());
-
       } catch (err) {
         console.error("Dashboard fetch error:", err);
       }
@@ -94,24 +110,19 @@ export default function DashboardPage() {
   /* -------- derived metrics --------------------------------- */
   const pendingCount = redempRows.length;
   const redempValue = redempSum != null ? usdCompact(redempSum) : "—";
-  const latestCashNumber = netCashHistory[0]
-    ? Number(netCashHistory[0].closing_avail)
-    : null;
-  const redempPct =
-    latestCashNumber && redempSum ? (redempSum / latestCashNumber) * 100 : null;
-    
+  const latestCashNumber = netCashHistory[0] ? Number(netCashHistory[0].closing_avail) : null;
+  const redempPct = latestCashNumber && redempSum ? (redempSum / latestCashNumber) * 100 : null;
+
   /* -------- Top-5 redemption rows ----------------------------- */
   const top5Redemptions = useMemo(() => {
     if (!redempRows.length || !latestCashNumber) return [];
 
     return [...redempRows]
-      .sort(
-        (a, b) => Math.abs(+b.nav_delta) - Math.abs(+a.nav_delta),
-      )
+      .sort((a, b) => Math.abs(+b.nav_delta) - Math.abs(+a.nav_delta))
       .slice(0, 5)
       .map((r) => {
         const amountAbs = Math.abs(+r.nav_delta);
-        const pctOfCash = +(amountAbs / latestCashNumber * 100).toFixed(1);
+        const pctOfCash = +((amountAbs / latestCashNumber) * 100).toFixed(1);
         return {
           investor: r.investor_name,
           amount: amountAbs,
@@ -126,8 +137,7 @@ export default function DashboardPage() {
     if (!netCashHistory.length) return { labels: [], datasets: [] };
 
     const ordered = [...netCashHistory].sort(
-      (a, b) =>
-        new Date(a.month_start).getTime() - new Date(b.month_start).getTime(),
+      (a, b) => new Date(a.month_start).getTime() - new Date(b.month_start).getTime()
     );
 
     return {
@@ -151,7 +161,7 @@ export default function DashboardPage() {
     if (!navRows.length) return { labels: [], datasets: [] };
 
     return {
-      labels: navRows.map((r) => r.period), 
+      labels: navRows.map((r) => r.period),
       datasets: [
         {
           label: "NAV Value Totals",
@@ -210,9 +220,31 @@ export default function DashboardPage() {
       {/* KPI cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* <KPICard title="Net Cash" value="$158.2M" change="+12.5%" changeType="positive" description="vs previous period" icon={DollarSign} /> */}
-        <KPICard title="Net Cash" value={netCashLatest} change="" changeType="neutral" description="" icon={DollarSign} />
-        <KPICard title="MoM P&L(Greyed for mockup only)" value="+8.7%" change="+2.3% vs avg" changeType="positive" description="Month over month" icon={TrendingUp} dimmed />
-        <KPICard title="Unsettled Redemptions" value={<span className="text-red-600">{redempValue}</span>} change={`${pendingCount} pending`} changeType="neutral" description="Awaiting settlement" icon={AlertTriangle} />
+        <KPICard
+          title="Net Cash"
+          value={netCashLatest}
+          change=""
+          changeType="neutral"
+          description=""
+          icon={DollarSign}
+        />
+        <KPICard
+          title="MoM P&L(Greyed for mockup only)"
+          value="+8.7%"
+          change="+2.3% vs avg"
+          changeType="positive"
+          description="Month over month"
+          icon={TrendingUp}
+          dimmed
+        />
+        <KPICard
+          title="Unsettled Redemptions"
+          value={<span className="text-red-600">{redempValue}</span>}
+          change={`${pendingCount} pending`}
+          changeType="neutral"
+          description="Awaiting settlement"
+          icon={AlertTriangle}
+        />
       </div>
 
       {/* charts */}
@@ -237,7 +269,7 @@ export default function DashboardPage() {
 
                     tooltip: {
                       enabled: true,
-                      backgroundColor: "rgba(31,41,55,0.9)",  // Tailwind gray-800 @ 90 %
+                      backgroundColor: "rgba(31,41,55,0.9)", // Tailwind gray-800 @ 90 %
                       titleFont: { weight: 600 },
                       padding: 10,
                       callbacks: {
@@ -300,10 +332,7 @@ export default function DashboardPage() {
       <Card>
         <CardHeader className="flex items-center justify-between">
           <CardTitle className="text-lg">Outstanding Redemptions</CardTitle>
-          <Badge
-            variant="outline"
-            className="text-destructive border-destructive"
-          >
+          <Badge variant="outline" className="text-destructive border-destructive">
             {redempPct ? `${redempPct.toFixed(1)}% of Net Cash` : "—"}
           </Badge>
         </CardHeader>
@@ -318,10 +347,7 @@ export default function DashboardPage() {
                     labels: ["Outstanding", "Remaining"],
                     datasets: [
                       {
-                        data: [
-                          redempPct ?? 0,
-                          redempPct != null ? 100 - redempPct : 100,
-                        ],
+                        data: [redempPct ?? 0, redempPct != null ? 100 - redempPct : 100],
                         backgroundColor: ["#ef4444", "#e5e7eb"],
                         borderWidth: 0,
                       },
@@ -360,7 +386,7 @@ export default function DashboardPage() {
                         {row.date}
                       </Badge>
                     </span>
-                    
+
                     <span className="text-destructive">
                       {usdCompact(row.amount)} ({row.percentage}%)
                     </span>

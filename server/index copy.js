@@ -7,15 +7,15 @@
 
 // const app = express();
 
-// // app.use(cors({ origin: "http://localhost:5003", credentials: true }));
+// // app.use(cors({ origin: "http://localhost:5103", credentials: true }));
 // /* ------------------------------------------------------------
 //  *  CORS
 //  *  Allow whatever front-end origin you’re developing on
-//  *  (default Next.js dev port is 3000; you’re on 3003 here).
+//  *  (default Next.js dev port is 3000; you’re on 3103 here).
 //  * ---------------------------------------------------------- */
 // const allowedOrigins = [
-//   "http://localhost:3003",
-//   "http://localhost:5003",
+//   "http://localhost:3103",
+//   "http://localhost:5103",
 // ];
 // app.use(
 //   cors({
@@ -29,16 +29,15 @@
 // );
 
 // app.use(express.json());
-// app.use(dashboardRoutes);    
-// app.use(investorsRoutes);                              
+// app.use(dashboardRoutes);
+// app.use(investorsRoutes);
 
 // app.use((_, res) => res.status(404).send("Not found"));
 
-// const PORT = process.env.PORT || 5003;
+// const PORT = process.env.PORT || 5103;
 // (async () => {
 
 //   await verifyConnection(); // 1) Check DB,
 //   app.listen(PORT, () => console.log(`🚀  API running on http://localhost:${PORT}`)); //2) start server.
 
 // })();
-
