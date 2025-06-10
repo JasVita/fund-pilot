@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext, PaginationLink } from "@/components/ui/pagination";
 
 /* ---- helpers ----------------------------------------------------- */
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
 
 const usd = (v: number, compact = false) =>
   new Intl.NumberFormat("en-US", {

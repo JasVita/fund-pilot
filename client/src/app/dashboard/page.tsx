@@ -13,7 +13,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 
 ChartJS.register( CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler );
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
 
 /* ─── money formatter ─────────────────────────────────────── */
 const usdCompact = (v: number) =>
