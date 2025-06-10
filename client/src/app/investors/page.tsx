@@ -21,35 +21,54 @@ const usd = (v: number, compact = false) =>
     maximumFractionDigits: compact ? 1 : 2,
   }).format(v);
 
-  const mockHoldings = [
-  {
-    name: "諾偉環球城市房地產投資信託基金（淨值派息型）",
-    subDate: "2022-11",
-    dataCutoff: "2025-02",
-    subscribed: 500_000,
-    marketValue: 414_727.9,
-    totalAfterInt: 471_914.73,
-    pnl: -5.62,
-  },
-  {
-    name: "Annum 全球大趨勢基金-票據系列 Class PP",
-    subDate: "2023-06",
-    dataCutoff: "NA",
-    subscribed: 200_000,
-    marketValue: null,
-    totalAfterInt: null,
-    pnl: null,
-  },
-  {
-    name: "凱偉私募債貸投資方案安投通道基金（派息型）",
-    subDate: "2023-06",
-    dataCutoff: "2024-12",
-    subscribed: 500_000,
-    marketValue: 488_723.9,
-    totalAfterInt: 563_393.3,
-    pnl: +12.68,
-  },
-];
+const fmtNum = (v: number) =>
+  new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(v);
+
+const fmtNumList = (s: string) =>
+  s
+    .split("\n")
+    .map((n, i) =>
+      Number.isFinite(Number(n)) ? (
+        <span key={i}>{fmtNum(Number(n))}{i !== s.split("\n").length - 1 && <br />}</span>
+      ) : (
+        <span key={i}>{n}{i !== s.split("\n").length - 1 && <br />}</span>
+      )
+    );
+
+const fmtNumListStr = (s: string) =>
+  s
+    .split("\n")
+    .map((n) => (Number.isFinite(Number(n)) ? fmtNum(Number(n)) : n))
+    .join("\n");
+
+
+const fmtDateList = (s: string) =>
+  s
+    .split("\n")
+    .map((d, i) => {
+      const dt = new Date(d);
+      const str =
+        !isNaN(dt.getTime())
+          ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`
+          : d;
+      return (
+        <span key={i}>
+          {str}
+          {i !== s.split("\n").length - 1 && <br />}
+        </span>
+      );
+    });
+
+const fmtDateListStr = (s: string) =>
+  s
+    .split("\n")
+    .map((d) => {
+      const dt = new Date(d);
+      return !isNaN(dt.getTime())
+        ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`
+        : d;
+    })
+    .join("\n");
 
 /* ---- types ------------------------------------------------------- */
 type Investor = {
@@ -61,12 +80,24 @@ type Investor = {
   status: "active" | "inactive";
 };
 
+type Holding = {
+  name: string;
+  sub_date: string;       
+  data_cutoff: string;    
+  subscribed: string;     
+  market_value: string;  
+  total_after_int: number;  
+  pnl_pct: string;        
+};
+
 /* --------------------------------------------------------------- */
 export default function InvestorsPage() {
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<Investor[]>([]);
   const [pageCount, setPageCount] = useState(1);
   const [selected, setSelected] = useState<Investor | null>(null);
+  const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [loadingHoldings, setLoadingHoldings] = useState(false);
 
   /* fetch rows whenever page changes ----------------------------- */
   useEffect(() => {
@@ -82,6 +113,32 @@ export default function InvestorsPage() {
       }
     })();
   }, [page]);
+
+  /* fetch holdings when investor selected ----------------------------- */
+  useEffect(() => {
+    if (!selected) {
+      setHoldings([]);
+      return;
+    }
+
+    (async () => {
+      try {
+        setLoadingHoldings(true);
+        const r = await fetch(
+          `${API_BASE}/investors/holdings?investor=${encodeURIComponent(
+            selected.investor
+          )}`
+        );
+        const j: { rows: Holding[] } = await r.json();
+        setHoldings(j.rows);
+      } catch (err) {
+        console.error("holdings fetch:", err);
+        setHoldings([]);
+      } finally {
+        setLoadingHoldings(false);
+      }
+    })();
+  }, [selected]);
 
   /* close detail on Esc ------------------------------------------ */
   const escClose = useCallback((e: KeyboardEvent) => {
@@ -102,21 +159,12 @@ export default function InvestorsPage() {
         <div className="flex-1 overflow-x-auto">
           <Table className="w-full table-fixed [&_td]:truncate [&_th]:truncate">
             <colgroup>
-              {/* Investor – allow 220 px then truncate */}
-              <col style={{ width: "26%" }} className="max-w-[220px]" />
-              {/* Class */}
-              <col style={{ width: "14%" }} className="max-w-[110px]" />
-              {/* Number Held */}
-              <col style={{ width: "14%" }} className="max-w-[110px]" />
-              {/* Current NAV */}
-              <col style={{ width: "16%" }} className="max-w-[120px]" />
-              {/* Unpaid Redeem */}
-              <col style={{ width: "16%" }} className="max-w-[140px]" />
-              {/* Status */}
-              <col style={{ width: "14%" }} className="max-w-[90px]" />
-              {/* {["26%", "14%", "14%", "16%", "16%", "14%"].map((w, i) => (
-                <col key={i} style={{ width: w }} />
-              ))} */}
+              <col style={{ width: "26%" }} className="max-w-[220px]" /> {/* Investor – allow 220 px then truncate */}
+              <col style={{ width: "14%" }} className="max-w-[110px]" /> {/* Class */}
+              <col style={{ width: "14%" }} className="max-w-[110px]" /> {/* Number Held */}
+              <col style={{ width: "16%" }} className="max-w-[120px]" /> {/* Current NAV */}
+              <col style={{ width: "16%" }} className="max-w-[140px]" /> {/* Unpaid Redeem */}
+              <col style={{ width: "14%" }} className="max-w-[90px]" /> {/* Status */}
             </colgroup>
             <TableHeader>
               <TableRow>
@@ -138,7 +186,7 @@ export default function InvestorsPage() {
                   onClick={() => setSelected(inv)}
                   className="cursor-pointer hover:bg-muted/50"
                 >
-                  <TableCell className="font-medium sticky left-0 bg-background">
+                  <TableCell className="font-medium sticky left-0 bg-background" title={inv.investor}>
                     {inv.investor}
                   </TableCell>
                   <TableCell>
@@ -255,13 +303,13 @@ export default function InvestorsPage() {
             <h2 className="text-xl font-bold">{selected.investor}</h2>
               {/* holdings table */}
               <Card>
-                <CardHeader>
+                {/* <CardHeader>
                   <CardTitle>Holdings (mock)</CardTitle>
-                </CardHeader>
+                </CardHeader> */}
                 {/* make table area scrollable while header & footer stay fixed */}
                 <CardContent className="p-6">
                   <div className="overflow-x-auto">
-                    <Table className="w-full table-fixed border-collapse [&_td]:truncate [&_th]:truncate">
+                    <Table className="w-full table-fixed border-collapse [&_th]:truncate"> {/* [&_td]:truncate "> */}
                       <colgroup>
                         {["28%", "8%", "8%", "12%", "12%", "12%", "10%"].map((w, i) => (
                           <col key={i} style={{ width: w }} />
@@ -280,37 +328,51 @@ export default function InvestorsPage() {
                         </TableRow>
                       </TableHeader>
             
-                      <TableBody>
-                        {mockHoldings.map((h) => (
+                    <TableBody>
+                      {loadingHoldings ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center">
+                            Loading…
+                          </TableCell>
+                        </TableRow>
+                      ) : holdings.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center">
+                            No data
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        holdings.map((h) => (
                           <TableRow key={h.name}>
-                            <TableCell>{h.name}</TableCell>
-                            <TableCell>{h.subDate}</TableCell>
-                            <TableCell>{h.dataCutoff}</TableCell>
-                            <TableCell className="text-right">{usd(h.subscribed)}</TableCell>
-                            <TableCell className="text-right">
-                              {h.marketValue !== null ? usd(h.marketValue) : "NA"}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {h.totalAfterInt !== null ? usd(h.totalAfterInt) : "NA"}
-                            </TableCell>
+                            <TableCell className="whitespace-pre-line break-words" title={h.name}>{h.name}</TableCell>
+                            <TableCell className="truncate" title={fmtDateListStr(h.sub_date)}>{fmtDateList(h.sub_date)}</TableCell>
+                            <TableCell className="truncate" title={fmtDateListStr(h.data_cutoff)}>{fmtDateList(h.data_cutoff)}</TableCell>
+                            <TableCell className="truncate text-right" title={fmtNumListStr(h.subscribed)}>{fmtNumList(h.subscribed)}</TableCell>
+                            <TableCell className="truncate text-right" title={fmtNumListStr(h.market_value)}>{fmtNumList(h.market_value)}</TableCell>
+                            <TableCell className="truncate text-right" title={fmtNum(h.total_after_int)}>{fmtNum(h.total_after_int)}</TableCell>
                             <TableCell
                               className={`text-right ${
-                                h.pnl === null
+                                h.pnl_pct === "NA"
                                   ? "text-muted-foreground"
-                                  : h.pnl > 0
+                                  : Number(h.pnl_pct) > 0
                                   ? "text-green-600"
                                   : "text-destructive"
                               }`}
                             >
-                              {h.pnl === null ? "NA" : `${h.pnl > 0 ? "+" : ""}${h.pnl}%`}
+                              {h.pnl_pct === "NA"
+                                ? "NA"
+                                : `${Number(h.pnl_pct) > 0 ? "+" : ""}${
+                                    h.pnl_pct
+                                  }%`}
                             </TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
               {/* download CTA */}
               <div className="flex justify-center pt-4">
                 <Button
