@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import axios from "axios";
 
 import {
   Send,
@@ -27,6 +28,8 @@ import {
   History,
   ChevronRight,
 } from "lucide-react";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
 
 /* ─── types ─── */
 interface Message {
@@ -43,7 +46,7 @@ export default function AIChatPage() {
     {
       id: "1",
       content:
-        "Hello! I'm your fund management AI assistant. I can help you analyze data, generate reports, and answer questions about your portfolios. What would you like to know?",
+        "Hello! I'm your fund management AI assistant. I here to answer questions about your portfolios. What would you like to know?",
       sender: "assistant",
       timestamp: new Date(),
     },
@@ -74,10 +77,17 @@ export default function AIChatPage() {
   ];
 
   /* helpers */
-  const ts = (d: Date) =>
-    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  // const ts = (d: Date) =>
+  //   d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-  const send = () => {
+  const ts = (d: Date) =>
+    d.toLocaleTimeString("en-GB", {   // 24-hour, same everywhere
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Hong_Kong",     // or your canonical zone
+    });
+  const send = async () => {
     if (!input.trim()) return;
 
     const user: Message = {
@@ -89,13 +99,17 @@ export default function AIChatPage() {
     setMessages((m) => [...m, user]);
     setInput("");
     setThinking(true);
+    // make request to server
+    const {data} = await axios.post(`${API_BASE}/ai-chat`, { question: user.content });
+    console.log("data", data);
 
     /* pretend we call an LLM */
     setTimeout(() => {
       const reply: Message = {
         id: (Date.now() + 1).toString(),
         sender: "assistant",
-        content: mockLLM(user.content),
+        // content: mockLLM(user.content),
+        content: data.answer,
         timestamp: new Date(),
       };
       setMessages((m) => [...m, reply]);
