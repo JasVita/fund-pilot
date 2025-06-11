@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";   
-import { KPICard } from "./KPICard";        
+import { Badge } from "@/components/ui/badge";
+import { KPICard } from "./KPICard";
 import { Download, Filter, Calendar, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
 
 import { Line, Bar, Doughnut } from "react-chartjs-2";
@@ -44,16 +44,12 @@ type UnsettledRow = {
 export default function DashboardPage() {
   /* -------- state ------------------------------------------- */
   const [netCashLatest, setNetCashLatest] = useState<string>("—");
-  const [netCashHistory, setNetCashHistory] = useState<
-    { month_start: string; closing_avail: string }[]
-  >([]);
+  const [netCashHistory, setNetCashHistory] = useState<{ month_start: string; closing_avail: string }[]>([]);
 
   const [redempRows, setRedempRows] = useState<UnsettledRow[]>([]);
 
   const [redempSum, setRedempSum] = useState<number | null>(null);
-  const [navRows, setNavRows] = useState<
-    { period: string; nav: string; dividend: string }[]
-  >([]);
+  const [navRows, setNavRows] = useState<{ period: string; nav: string; dividend: string }[]>([]);
 
   /* -------- fetch both endpoints once ----------------------- */
   useEffect(() => {
@@ -84,7 +80,6 @@ export default function DashboardPage() {
 
         /* --- NAV + Dividend rows ------------------------------ */
         setNavRows(await ndRes.json());
-
       } catch (err) {
         console.error("Dashboard fetch error:", err);
       }
@@ -94,24 +89,19 @@ export default function DashboardPage() {
   /* -------- derived metrics --------------------------------- */
   const pendingCount = redempRows.length;
   const redempValue = redempSum != null ? usdCompact(redempSum) : "—";
-  const latestCashNumber = netCashHistory[0]
-    ? Number(netCashHistory[0].closing_avail)
-    : null;
-  const redempPct =
-    latestCashNumber && redempSum ? (redempSum / latestCashNumber) * 100 : null;
-    
+  const latestCashNumber = netCashHistory[0] ? Number(netCashHistory[0].closing_avail) : null;
+  const redempPct = latestCashNumber && redempSum ? (redempSum / latestCashNumber) * 100 : null;
+
   /* -------- Top-5 redemption rows ----------------------------- */
   const top5Redemptions = useMemo(() => {
     if (!redempRows.length || !latestCashNumber) return [];
 
     return [...redempRows]
-      .sort(
-        (a, b) => Math.abs(+b.nav_delta) - Math.abs(+a.nav_delta),
-      )
+      .sort((a, b) => Math.abs(+b.nav_delta) - Math.abs(+a.nav_delta))
       .slice(0, 5)
       .map((r) => {
         const amountAbs = Math.abs(+r.nav_delta);
-        const pctOfCash = +(amountAbs / latestCashNumber * 100).toFixed(1);
+        const pctOfCash = +((amountAbs / latestCashNumber) * 100).toFixed(1);
         return {
           investor: r.investor_name,
           amount: amountAbs,
@@ -126,8 +116,7 @@ export default function DashboardPage() {
     if (!netCashHistory.length) return { labels: [], datasets: [] };
 
     const ordered = [...netCashHistory].sort(
-      (a, b) =>
-        new Date(a.month_start).getTime() - new Date(b.month_start).getTime(),
+      (a, b) => new Date(a.month_start).getTime() - new Date(b.month_start).getTime()
     );
 
     return {
@@ -151,7 +140,7 @@ export default function DashboardPage() {
     if (!navRows.length) return { labels: [], datasets: [] };
 
     return {
-      labels: navRows.map((r) => r.period), 
+      labels: navRows.map((r) => r.period),
       datasets: [
         {
           label: "NAV Value Totals",
@@ -237,7 +226,7 @@ export default function DashboardPage() {
 
                     tooltip: {
                       enabled: true,
-                      backgroundColor: "rgba(31,41,55,0.9)",  // Tailwind gray-800 @ 90 %
+                      backgroundColor: "rgba(31,41,55,0.9)", // Tailwind gray-800 @ 90 %
                       titleFont: { weight: 600 },
                       padding: 10,
                       callbacks: {
@@ -300,10 +289,7 @@ export default function DashboardPage() {
       <Card>
         <CardHeader className="flex items-center justify-between">
           <CardTitle className="text-lg">Outstanding Redemptions</CardTitle>
-          <Badge
-            variant="outline"
-            className="text-destructive border-destructive"
-          >
+          <Badge variant="outline" className="text-destructive border-destructive">
             {redempPct ? `${redempPct.toFixed(1)}% of Net Cash` : "—"}
           </Badge>
         </CardHeader>
@@ -318,10 +304,7 @@ export default function DashboardPage() {
                     labels: ["Outstanding", "Remaining"],
                     datasets: [
                       {
-                        data: [
-                          redempPct ?? 0,
-                          redempPct != null ? 100 - redempPct : 100,
-                        ],
+                        data: [redempPct ?? 0, redempPct != null ? 100 - redempPct : 100],
                         backgroundColor: ["#ef4444", "#e5e7eb"],
                         borderWidth: 0,
                       },
@@ -360,7 +343,7 @@ export default function DashboardPage() {
                         {row.date}
                       </Badge>
                     </span>
-                    
+
                     <span className="text-destructive">
                       {usdCompact(row.amount)} ({row.percentage}%)
                     </span>
