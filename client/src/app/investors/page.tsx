@@ -8,6 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext, PaginationLink } from "@/components/ui/pagination";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
+import ReportGeneratorDialog from "@/components/pdfGenerator/ReportGeneratorDialog";
+import type { TableRowData } from "@/components/pdfGenerator/InvestmentTable";
+
 
 /* ---- helpers ----------------------------------------------------- */
 const API_BASE =
@@ -262,6 +265,20 @@ export default function InvestorsPage() {
     </Card>
   );
 
+  /* >>> convert live holdings → TableRowData */
+  const tableRowsForPdf: TableRowData[] = holdings.map((h) => ({
+    productName: h.name,
+    subscriptionTime: h.sub_date,          // already "YYYY-MM" list\n…
+    dataDeadline: h.data_cutoff,
+    subscriptionAmount: h.subscribed,
+    marketValue: h.market_value,
+    totalAfterDeduction:
+      h.total_after_int !== null ? h.total_after_int.toString() : "N/A",
+    estimatedProfit:
+      h.pnl_pct === "NA" ? "NA"
+        : `${Number(h.pnl_pct) > 0 ? "+" : ""}${h.pnl_pct}%`,
+  }));
+
   /* -------------------------------------------------------------- */
   return (
     <div className="p-6 space-y-6">
@@ -373,8 +390,15 @@ export default function InvestorsPage() {
                 </div>
               </CardContent>
             </Card>
+            <div className="flex justify-center pt-4">
+              <ReportGeneratorDialog
+                defaultInvestor={selected.investor}
+                defaultTableData={tableRowsForPdf}  
+              />
+              {/* <ReportGeneratorDialog defaultInvestor={selected.investor} /> */}
+            </div>
               {/* download CTA */}
-              <div className="flex justify-center pt-4">
+              {/* <div className="flex justify-center pt-4">
                 <Button
                   variant="secondary"
                   className="flex items-center gap-2"
@@ -383,7 +407,7 @@ export default function InvestorsPage() {
                   <Download className="h-4 w-4" />
                   Download report
                 </Button>
-              </div>
+              </div> */}
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (
