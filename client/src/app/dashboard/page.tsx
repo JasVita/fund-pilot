@@ -9,30 +9,9 @@ import { KPICard } from "./KPICard";
 import { Download, Filter, Calendar, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
 
 import { Line, Bar, Doughnut } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Tooltip,
-  Legend,
-  Filler,
-} from "chart.js";
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler } from "chart.js";
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Tooltip,
-  Legend,
-  Filler
-);
+ChartJS.register( CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler );
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
 
@@ -52,14 +31,14 @@ const usdAxis = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0, // whole-dollar ticks
-    notation: "compact", // "12.3M" / "876K" / "45K"
+    maximumFractionDigits: 0,  // whole-dollar ticks
+    notation: "compact",       // "12.3M" / "876K" / "45K"
   }).format(v);
 
 type UnsettledRow = {
   investor_name: string;
-  nav_delta: string; // negative number as a string
-  snapshot_date: string; // e.g. "2025-01-28T00:00:00.000Z"
+  nav_delta: string;      // negative number as a string
+  snapshot_date: string;  // e.g. "2025-01-28T00:00:00.000Z"
 };
 /* ─── Component ─────────────────────────────────────── */
 export default function DashboardPage() {
@@ -220,31 +199,9 @@ export default function DashboardPage() {
       {/* KPI cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* <KPICard title="Net Cash" value="$158.2M" change="+12.5%" changeType="positive" description="vs previous period" icon={DollarSign} /> */}
-        <KPICard
-          title="Net Cash"
-          value={netCashLatest}
-          change=""
-          changeType="neutral"
-          description=""
-          icon={DollarSign}
-        />
-        <KPICard
-          title="MoM P&L(Greyed for mockup only)"
-          value="+8.7%"
-          change="+2.3% vs avg"
-          changeType="positive"
-          description="Month over month"
-          icon={TrendingUp}
-          dimmed
-        />
-        <KPICard
-          title="Unsettled Redemptions"
-          value={<span className="text-red-600">{redempValue}</span>}
-          change={`${pendingCount} pending`}
-          changeType="neutral"
-          description="Awaiting settlement"
-          icon={AlertTriangle}
-        />
+        <KPICard title="Net Cash" value={netCashLatest} change="" changeType="neutral" description="" icon={DollarSign} />
+        <KPICard title="MoM P&L(Greyed for mockup only)" value="+8.7%" change="+2.3% vs avg" changeType="positive" description="Month over month" icon={TrendingUp} dimmed />
+        <KPICard title="Unsettled Redemptions" value={<span className="text-red-600">{redempValue}</span>} change={`${pendingCount} pending`} changeType="neutral" description="Awaiting settlement" icon={AlertTriangle} />
       </div>
 
       {/* charts */}
