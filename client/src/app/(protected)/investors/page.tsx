@@ -395,23 +395,11 @@ export default function InvestorsPage() {
                 defaultInvestor={selected.investor}
                 defaultTableData={tableRowsForPdf}  
               />
-              {/* <ReportGeneratorDialog defaultInvestor={selected.investor} /> */}
             </div>
               {/* download CTA */}
-              {/* <div className="flex justify-center pt-4">
-                <Button
-                  variant="secondary"
-                  className="flex items-center gap-2"
-                  onClick={() => alert("TODO: hook up API")}
-                >
-                  <Download className="h-4 w-4" />
-                  Download report
-                </Button>
-              </div> */}
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (
-        /* no selection → just show the table card */
         TableCard
       )}
     </div>
