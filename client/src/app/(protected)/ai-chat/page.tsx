@@ -101,7 +101,7 @@ export default function AIChatPage() {
     setThinking(true);
     // make request to server
     const {data} = await axios.post(`${API_BASE}/ai-chat`, { question: user.content });
-    console.log("data", data);
+    // console.log("data", data);
 
     /* pretend we call an LLM */
     setTimeout(() => {

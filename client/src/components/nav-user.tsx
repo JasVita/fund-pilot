@@ -42,7 +42,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar();
   const { logout } = useAuth();
-  console.log("%c[NavUser] props:", "color:green", user);
+  // console.log("%c[NavUser] props:", "color:green", user);
   return (
     <SidebarMenu>
       <SidebarMenuItem>

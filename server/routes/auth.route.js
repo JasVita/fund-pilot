@@ -32,7 +32,7 @@ router.get(
       avatar: user.avatar,
     };
 
-    console.log("\x1b[33m[auth.callback] issuing JWT payload:\x1b[0m", payload);
+    // console.log("\x1b[33m[auth.callback] issuing JWT payload:\x1b[0m", payload);
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
       expiresIn: "7d",

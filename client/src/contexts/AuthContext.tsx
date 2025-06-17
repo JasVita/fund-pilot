@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       const data = await apiGet<{ ok: boolean; user: User }>("/api/auth/me");
-      console.log("%c[Auth] /api/auth/me →", "color:orange", data);
+      // console.log("%c[Auth] /api/auth/me →", "color:orange", data);
 
       if (data?.ok) setUser(data.user);
       setLoading(false);

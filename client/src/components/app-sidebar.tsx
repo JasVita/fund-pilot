@@ -129,7 +129,7 @@ const projects = [
 
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth();
-  console.log("%c[Sidebar] user from context:", "color:violet", user);
+  // console.log("%c[Sidebar] user from context:", "color:violet", user);
 
   return (
     <Sidebar collapsible="icon" {...props}>
