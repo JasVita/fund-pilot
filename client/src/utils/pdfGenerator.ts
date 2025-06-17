@@ -35,10 +35,11 @@ async function fetchAsDataURL(path: string, key: string): Promise<string> {
 }
 
 /* ---------- helpers for static images ---------------------------- */
-const getCoverImg     = () => fetchAsDataURL("/cover-bg.png",           "cover");
-const getLogoImg      = () => fetchAsDataURL("/logo-white-cover.png",   "logo1");
-const getLogoTableImg = () => fetchAsDataURL("/logo-white-table.png",   "logoT");
-const getLogoDiscImg  = () => fetchAsDataURL("/logo-white-disclaimer.png","logoD");
+const getCoverImg          = () => fetchAsDataURL("/cover-bg.png",           "cover");
+const getLogoImg           = () => fetchAsDataURL("/logo-white-cover.png",   "logo1");
+const getBlackLogoTableImg = () => fetchAsDataURL("/logo-black-table.png",   "logo2");
+const getLogoTableImg      = () => fetchAsDataURL("/logo-white-table.png",   "logoT");
+const getLogoDiscImg       = () => fetchAsDataURL("/logo-white-disclaimer.png","logoD");
 
 /* ---------- helpers for numbers / dates -------------------------- */
 const fmtYYYYMM = (s: string) => {
@@ -76,19 +77,20 @@ export async function generateInvestmentReport(data: ReportData) {
 
   await ensureZhengTiFan(doc);
 
-  const [bg, logo1, logo2, logo3] = await Promise.all([
-    getCoverImg(), getLogoImg(), getLogoTableImg(), getLogoDiscImg()
+  const [bg, logo1, logo2, logo3, logo4] = await Promise.all([
+    getCoverImg(), getLogoImg(), getLogoTableImg(), getLogoDiscImg(), getBlackLogoTableImg()
   ]);
 
   /* ============ Page 1 – Cover ================================== */
   doc.addImage(bg,    "PNG", 0, 0, pageW, pageH);
   doc.addImage(logo1, "PNG", 20.4, 16.4, 129.2, 45.8);
 
-  doc.setFont("helvetica", "bold").setFontSize(26).setTextColor(255);                           // part-1 font
+  // ${data.investor}存續報告
+  doc.setFont("helvetica", "bold").setFontSize(26).setTextColor(255);
   const investorW   = doc.getTextWidth(data.investor);
 
-  doc.setFont("ZhengTiFan", "normal").setFontSize(26).setTextColor(255);                        // part-2 font
-  const reportLabel = " 存續報告";                             // leading NBSP for a small gap
+  doc.setFont("ZhengTiFan", "normal").setFontSize(26).setTextColor(255);
+  const reportLabel = " 存續報告"; 
   const labelW      = doc.getTextWidth(reportLabel);
 
   /* centre the *combined* string by drawing two slices               */
@@ -97,36 +99,49 @@ export async function generateInvestmentReport(data: ReportData) {
 
   doc.setFont("helvetica", "bold").text(data.investor, titleX, titleY);
   doc.setFont("ZhengTiFan", "normal").text(reportLabel, titleX + investorW, titleY);
-  // doc.setFont("ZhengTiFan", "normal").setFontSize(26).setTextColor(255);
-  // const title = `${data.investor} 存續報告`;
-  // doc.text(title, (pageW - doc.getTextWidth(title)) / 2, pageH / 2 - 20);
-
+  
+  // ${data.reportDate}
   doc.setFont("helvetica", "normal").setFontSize(16).setTextColor(255);
   doc.text(data.reportDate, (pageW - doc.getTextWidth(data.reportDate)) / 2, pageH / 2 + 10);
-
+  
   doc.setFont("ZhengTiFan", "normal").setFontSize(16).setTextColor(255);
   const subtitle = "表格為計算數位，實際數位以正式報告為主";
   doc.text(subtitle, (pageW - doc.getTextWidth(subtitle)) / 2, pageH / 2 + 30);
 
   /* ============ Page 2 – Table ================================== */
   doc.addPage();
-  doc.addImage(bg, "PNG", 0, 0, pageW, pageH);
-  doc.addImage(logo2, "PNG", 238, 14.7, 83.5, 29.6);
+  // doc.addImage(bg, "PNG", 0, 0, pageW, pageH);
+  doc.addImage(logo4, "PNG", 280, 12, 70, 29.6);
 
-  doc.setFont("ZhengTiFan", "normal").setFontSize(28).setTextColor(255);
+  doc.setFont("ZhengTiFan", "normal").setFontSize(28).setTextColor(0); // black
   doc.text("已投資產品總結", 30, 40);
 
   /* table geometry */
+  const TABLE_GAP  = 0.5; 
   const tableX  = 30;
-  const tableW  = 310;
+  // const tableW  = 310;
   const colW    = [73, 32, 32, 41, 41, 41, 50];
   const headerH = 25;
   const lineGap = 6;
-  let   y       = 55;
+  const colX: number[] = [];
+  let   cursor = tableX;
+  colW.forEach(w => {
+    colX.push(cursor);
+    cursor += w + TABLE_GAP;
+  });
 
+  const tableW = cursor - tableX - TABLE_GAP;   // effective width
+
+  
   /* ---------- header row (ZhengTiFan only here) ---------------------- */
-  doc.setFillColor(0, 0, 0, 0.9).rect(tableX, y, tableW, headerH, "F");
-  doc.setFont("ZhengTiFan", "normal").setFontSize(14);
+  let y = 55;
+  
+  // doc.setFillColor(208, 206, 206).rect(tableX, y, tableW, headerH, "F");
+  
+  colW.forEach((w, i) => {
+    doc.setFillColor(208, 206, 206).rect(colX[i], y, w, headerH, "F");  
+  });
+  doc.setFont("ZhengTiFan", "normal").setFontSize(14).setTextColor(0); // black
 
   const headers = [
     "產品名稱\n(開放式基金)",
@@ -137,15 +152,16 @@ export async function generateInvestmentReport(data: ReportData) {
     "含息後總額",
     "估派息後盈虧(%)"
   ];
-  let x = tableX;
+  // let x = tableX;
   headers.forEach((h, i) => {
-    doc.text(h, x + 3, y + 10);
-    x += colW[i];
+    const cx = colX[i] + colW[i] / 2;  
+    // doc.text(h, colX[i] + 3, y + 10);        // +3 mm left-padding
+    doc.text(h, cx, y + headerH / 2, { align: "center", baseline: "middle" });
   });
-  y += headerH;
+  y += headerH + TABLE_GAP;  
 
   /* ---- switch back to Helvetica for the rest ------------------- */
-  doc.setFont("helvetica", "normal");
+  doc.setFont("helvetica", "normal").setTextColor(0);
 
   /* ---------- body rows ----------------------------------------- */
   for (const [idx, row] of data.tableData.entries()) {
@@ -159,38 +175,48 @@ export async function generateInvestmentReport(data: ReportData) {
       row.estimatedProfit
     ];
 
-    /* wrap text (all Helvetica now) */
+    /* wrap text */
     const wrapped = cells.map((cell, i) =>
       doc.splitTextToSize(
-        i === 0 ? cell.replace(/(.{1,20})/g, "$1\n") : cell, colW[i] - 4
+        i === 0 ? cell.replace(/(.{1,20})/g, "$1\n") : cell,
+        colW[i] - 4
       ) as string[]
     );
 
     const rowH = Math.max(...wrapped.map(w => w.length)) * lineGap + 4;
 
-    if (idx % 2 === 0)
-      doc.setFillColor(0, 0, 0, 0.7).rect(tableX, y, tableW, rowH, "F");
+    /* background stripe per column (so the 1 mm gaps stay blank) */
+    const bg = idx % 2 ? [217, 217, 217] : [232, 232, 232];
+    colW.forEach((w, i) =>
+      doc.setFillColor(bg[0], bg[1], bg[2]).rect(colX[i], y, w, rowH, "F")
+    );
 
-    x = tableX;
+    /* write the cells */
     wrapped.forEach((lines, colIdx) => {
+      // const cellX = colX[colIdx];                 // ← use pre-computed x
+      const cx   = colX[colIdx] + colW[colIdx] / 2; 
       lines.forEach((ln, li) => {
-        if (colIdx === 6) {               // profit-% column colouring
+        if (colIdx === 6) {                       // profit-% colouring
           const t = ln.trimStart();
-          if      (t.startsWith("+")) doc.setTextColor(0, 255, 0);   // green
-          else if (t.startsWith("-")) doc.setTextColor(255, 0, 0);   // red
-          else                         doc.setTextColor(0);        // white
+          doc.setTextColor(
+            t.startsWith("+") ? 0   : t.startsWith("-") ? 192 : 0,
+            t.startsWith("+") ? 192 : t.startsWith("-") ? 0   : 0,
+            0
+          );
         } else {
-          doc.setTextColor(255);
+          doc.setTextColor(0);
         }
-        doc.text(ln, x + 3, y + 8 + li * lineGap);
+        // doc.text(ln, cellX + 3, y + 8 + li * lineGap);
+        const lineY = y + 8 + li * lineGap;  
+        doc.text(ln, cx, lineY, { align: "center" });
       });
-      x += colW[colIdx];
     });
-    y += rowH;
+
+    y += rowH + TABLE_GAP;
   }
 
   /* ---------- footer -------------------------------------------- */
-  doc.setFont("ZhengTiFan", "normal").setFontSize(12).setTextColor(255);
+  doc.setFont("ZhengTiFan", "normal").setFontSize(12).setTextColor(0);
   doc.text(
     "存續報告僅供內部參考使用 投資人實際數字以月結單為准",
     30, pageH - 20
