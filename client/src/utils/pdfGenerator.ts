@@ -52,6 +52,21 @@ const to2dp = (s: string) => {
   return isNaN(n) ? s : n.toFixed(2);
 };
 
+/* ————— initials from full name ————— */
+const initials = (full: string) =>
+  full.trim().split(/\s+/).map(w => w[0].toUpperCase()).join("");
+
+/* ————— 1-comma-per-thousand, 2 dp ————— */
+const fmtMoney = (v: string) => {
+  const n = Number(String(v).replace(/,/g, ""));
+  return isNaN(n)
+    ? v
+    : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+/* a helper for multiline cells (split on \n) */
+const fmtMoneyLines = (v: string) => v.split("\n").map(fmtMoney).join("\n");
+
 /* ---------- load & register NotoSans font (once) ------------------- */
 async function ensureZhengTiFan(doc: jsPDF) {
   const FLAG = "_zhengTiFanLoaded";
@@ -69,6 +84,8 @@ async function ensureZhengTiFan(doc: jsPDF) {
 
 /* ---------- main builder ----------------------------------------- */
 export async function generateInvestmentReport(data: ReportData) {
+  const nameInitials = initials(data.investor);
+
   /* ---------- page geometry (A4 landscape) ----------------------- */
   const pageH = 210;                       // mm
   const pageW = (4000 / 2259) * pageH;     // ≈ 372 mm
@@ -87,7 +104,7 @@ export async function generateInvestmentReport(data: ReportData) {
 
   // ${data.investor}存續報告
   doc.setFont("helvetica", "bold").setFontSize(26).setTextColor(255);
-  const investorW   = doc.getTextWidth(data.investor);
+  const investorW   = doc.getTextWidth(nameInitials);
 
   doc.setFont("ZhengTiFan", "normal").setFontSize(26).setTextColor(255);
   const reportLabel = " 存續報告"; 
@@ -97,7 +114,7 @@ export async function generateInvestmentReport(data: ReportData) {
   const titleY  = pageH / 2 - 20;
   const titleX  = (pageW - (investorW + labelW)) / 2;
 
-  doc.setFont("helvetica", "bold").text(data.investor, titleX, titleY);
+  doc.setFont("helvetica", "bold").text(nameInitials, titleX, titleY);
   doc.setFont("ZhengTiFan", "normal").text(reportLabel, titleX + investorW, titleY);
   
   // ${data.reportDate}
@@ -169,9 +186,9 @@ export async function generateInvestmentReport(data: ReportData) {
       row.productName,
       row.subscriptionTime.split("\n").map(fmtYYYYMM).join("\n"),
       row.dataDeadline.split("\n").map(fmtYYYYMM).join("\n"),
-      row.subscriptionAmount,
-      row.marketValue,
-      row.totalAfterDeduction.split("\n").map(to2dp).join("\n"),
+      fmtMoneyLines(row.subscriptionAmount), // row.subscriptionAmount,
+      fmtMoneyLines(row.marketValue),  // row.marketValue,
+      fmtMoneyLines(row.totalAfterDeduction.split("\n").map(to2dp).join("\n")),
       row.estimatedProfit
     ];
 
@@ -233,5 +250,5 @@ export async function generateInvestmentReport(data: ReportData) {
   doc.text(doc.splitTextToSize(disclaimer, 227.2), 53.3, 71.7);
 
   const yyyymm = data.reportDate.substring(0, 7).replace("-", "");  // "2025-06-17" → "202506"
-  doc.save(`${data.investor}_存續報告_${yyyymm}.pdf`);
+  doc.save(`${nameInitials}_存續報告_${yyyymm}.pdf`);
 }
