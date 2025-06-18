@@ -5,3 +5,4 @@
 .env*
 # macOS / editor cruft
 .DS_Store
+.vscode

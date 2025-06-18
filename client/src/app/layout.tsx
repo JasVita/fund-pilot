@@ -26,7 +26,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {/* AuthProvider is global; it won’t render sidebar or hero on its own */}
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

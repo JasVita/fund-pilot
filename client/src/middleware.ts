@@ -8,7 +8,8 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const publicPaths = ["/login", "/favicon.ico"];
   const isPublic = publicPaths.some((p) => pathname.startsWith(p)) ||
-                   pathname.startsWith("/_next");
+                    pathname.startsWith("/_next") ||
+                    pathname.endsWith(".png");
 
   if (!token && !isPublic) {
     const url = req.nextUrl.clone();
