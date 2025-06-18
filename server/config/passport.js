@@ -14,13 +14,22 @@ passport.use(
     async (_access, _refresh, profile, done) => {
       try {
         let user = await findByGoogleId(profile.id);
-        if (!user) {
+
+        // 🔥 Use custom flag for signup
+        const isSignup = profile._json?.isSignup || false;
+        
+        if (!user && isSignup) {
           user = await createFromProfile({
             googleId: profile.id,
-            email:    profile.emails[0].value,
-            name:     profile.displayName,
-            avatar:   profile.photos?.[0]?.value || null
+            email: profile.emails[0].value,
+            name: profile.displayName,
+            avatar: profile.photos?.[0]?.value || null,
           });
+        }
+
+        if (!user && !isSignup) {
+          // User trying to login but not signed up
+          return done(null, false, { message: "No account found. Please sign up." });
         }
         return done(null, user);          // plain user object
       } catch (err) {

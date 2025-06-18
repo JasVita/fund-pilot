@@ -1,29 +1,64 @@
 // routes/auth.route.js
-const express  = require("express");
-const jwt      = require("jsonwebtoken");
+const express = require("express");
+const jwt = require("jsonwebtoken");
 const passport = require("passport");
 const requireAuth = require("../middlewares/requireAuth");
+const { findByGoogleId, createFromProfile } = require("../repositories/userRepo");
 
 const router = express.Router();
 
-/* ---------- 1) Kick off Google ---------- */
+/* ---------- 1) Kick off Google LOGIN ---------- */
 router.get(
   "/api/auth/google",
   passport.authenticate("google", {
     scope: ["profile", "email"],
     session: false,
+    state: "login",
   })
 );
 
-/* ---------- 2) Google callback ---------- */
+/* ---------- 2) Kick off Google SIGNUP ---------- */
+router.get(
+  "/api/auth/google/signup",
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+    session: false,
+    state: "signup",
+  })
+);
+
+/* ---------- 3) Google callback for both login & signup ---------- */
 router.get(
   "/api/auth/google/callback",
+  (req, res, next) => {
+    // Capture the intent (login or signup) from the Google OAuth state param
+    req._isSignup = req.query.state === "signup";
+    next();
+  },
   passport.authenticate("google", {
     failureRedirect: "/login-failed",
     session: false,
   }),
-  (req, res) => {
-    const user = req.user; // full DB row
+  async (req, res) => {
+    const googleProfile = req.user; // from passport strategy
+    const isSignup = req._isSignup;
+
+    let user = await findByGoogleId(googleProfile.id);
+
+    if (!user && isSignup) {
+      // User is signing up
+      user = await createFromProfile({
+        googleId: googleProfile.id,
+        email: googleProfile.email,
+        name: googleProfile.name,
+        avatar: googleProfile.avatar,
+      });
+    }
+
+    if (!user && !isSignup) {
+      // Trying to login without account
+      return res.redirect(`${process.env.FRONTEND_URL}/signup-required`);
+    }
 
     const payload = {
       sub: user.id,
@@ -32,16 +67,10 @@ router.get(
       avatar: user.avatar,
     };
 
-    // console.log("\x1b[33m[auth.callback] issuing JWT payload:\x1b[0m", payload);
-
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
 
-    /** Choose cookie domain:
-     *  - DEV  : if ENV=dev → "localhost"
-     *  - PROD : .fundpilot.turoid.ai  (set in .env)
-     */
     const cookieDomain =
       process.env.ENV === "dev"
         ? "localhost"
@@ -51,21 +80,21 @@ router.get(
       httpOnly: true,
       secure: process.env.ENV !== "dev",
       sameSite: "lax",
-      domain: cookieDomain,            // ← ********  ONLY CHANGE
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      domain: cookieDomain,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
     res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
   }
 );
 
-/* ---------- 3) Auth probe ---------- */
+/* ---------- 4) Auth probe ---------- */
 router.get("/api/auth/me", requireAuth, (req, res) => {
   console.log("\x1b[36m[auth.me] token verified, sending user:\x1b[0m", req.auth);
   res.json({ ok: true, user: req.auth });
 });
 
-/* ---------- 4) Logout ---------- */
+/* ---------- 5) Logout ---------- */
 router.post("/api/auth/logout", (_req, res) => {
   res.clearCookie("fp_jwt");
   res.json({ ok: true });

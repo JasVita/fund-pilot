@@ -2,6 +2,7 @@
 import Image from "next/image";
 
 const GOOGLE_LOGIN = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/google`;
+const GOOGLE_SIGNUP = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/google/signup`;
 
 export default function LoginPage() {
   return (
@@ -69,12 +70,8 @@ export default function LoginPage() {
               className="w-full border px-4 py-2 rounded"
             />
           </div>
-          <button
-            type="submit"
-            className="w-full bg-black text-white py-2 rounded hover:bg-gray-800"
-          >
-            Login
-          </button>
+          <button type="submit" className="w-full bg-black text-white py-2 rounded hover:bg-gray-800"> Login </button>
+          <button type="submit" className="w-full bg-[#0666CC] text-white py-2 rounded hover:bg-[#0552A3]"> Sign up with Email </button>
         </form>
         
         {/* Separator */}
@@ -85,22 +82,20 @@ export default function LoginPage() {
         </div>
 
         {/* Google Login Button */}
-        <div className="w-full max-w-sm mx-auto">
-          <a
-            href={GOOGLE_LOGIN}
-            className="block w-full rounded-md bg-black py-3 text-center text-white transition hover:bg-gray-800"
-          >
-            Sign in with Google
-          </a>
+        <div className="space-y-6 w-full max-w-sm mx-auto">
+          <a href={GOOGLE_LOGIN} className="block w-full rounded-md bg-black py-3 text-center text-white transition hover:bg-gray-800" >Sign in with Google </a>
+          <a href={GOOGLE_SIGNUP} className="block w-full rounded-md bg-[#0666CC] py-3 text-center text-white transition hover:bg-[#0552A3]" >Sign up with Google </a>
         </div>
 
+        
+
         {/* Additional Footer */}
-        {/* <div className="mt-4 text-sm text-center text-gray-500">
+        <div className="mt-4 text-sm text-center text-gray-500">
           <a href="#" className="text-blue-600 hover:underline">
             Forget Password?
           </a>
         </div>
-
+        {/* 
         <p className="mt-4 text-xs text-center text-gray-400">
           By logging in, you acknowledge and agree to our{" "}
           <a href="#" className="text-blue-500 underline">Terms of Service</a> and{" "}
