@@ -42,4 +42,28 @@ async function updateUserProfile({ id, googleId, name, avatar }) {
   return rows[0];
 }
 
+// ────────────────────── NEW: Email/password login ──────────────────────
+async function createWithEmail({ email, password, name, companyId }) {
+  const hash = await bcrypt.hash(password, 10);
+  const { rows } = await pool.query(
+    `INSERT INTO users (email, password_hash, name, company_id)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [email, hash, name, companyId]
+  );
+  return rows[0];
+}
+
+async function verifyLogin(email, password) {
+  const { rows } = await pool.query(
+    "SELECT * FROM users WHERE email = $1 LIMIT 1",
+    [email]
+  );
+  const user = rows[0];
+  if (!user || !user.password_hash) return null;
+
+  const match = await bcrypt.compare(password, user.password_hash);
+  return match ? user : null;
+}
+
 module.exports = { findByGoogleId, createFromProfile, findByEmail, updateUserProfile };

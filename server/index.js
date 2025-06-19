@@ -29,6 +29,8 @@ app.use(require("./routes/dashboard.route"));
 app.use(require("./routes/investors.route"));
 app.use(require("./routes/aichat.route"));
 
+app.use(require("./routes/admin.route"));
+
 app.get("/health", (_, res) => res.send("fundpilot API is healthy!"));
 
 const PORT = process.env.PORT || 5103;

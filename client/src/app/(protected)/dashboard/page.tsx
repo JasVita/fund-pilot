@@ -56,30 +56,48 @@ export default function DashboardPage() {
     (async () => {
       try {
         const [ncRes, urRes, ndRes] = await Promise.all([
-          // fetch(`${API_BASE}/dashboard/net-cash`, { credentials: "include" }),
-          // fetch(`${API_BASE}/dashboard/unsettled-redemption`, { credentials: "include" }),
-          // fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`, { credentials: "include" }),
-          fetch(`${API_BASE}/dashboard/net-cash`),
-          fetch(`${API_BASE}/dashboard/unsettled-redemption`),
-          fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`),
+          fetch(`${API_BASE}/dashboard/net-cash`, { credentials: "include" }),
+          fetch(`${API_BASE}/dashboard/unsettled-redemption`, { credentials: "include" }),
+          fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`, { credentials: "include" }),
+          // fetch(`${API_BASE}/dashboard/net-cash`),
+          // fetch(`${API_BASE}/dashboard/unsettled-redemption`),
+          // fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`),
         ]);
 
         /* --- Net-cash --------------------------------------- */
-        const ncJson: {
-          latest: number | null;
-          history: { month_start: string; closing_avail: string }[];
-        } = await ncRes.json();
+        // const ncJson: {
+        //   latest: number | null;
+        //   history: { month_start: string; closing_avail: string }[];
+        // } = await ncRes.json();
 
-        if (ncJson.latest != null) setNetCashLatest(usdCompact(ncJson.latest));
-        setNetCashHistory(ncJson.history);
+        // if (ncJson.latest != null) setNetCashLatest(usdCompact(ncJson.latest));
+        // setNetCashHistory(ncJson.history);
+        const ncJson = await ncRes.json();
+        if (Array.isArray(ncJson.history)) {
+          setNetCashHistory(ncJson.history);
+          if (ncJson.latest != null) {
+            setNetCashLatest(usdCompact(ncJson.latest));
+          }
+        }
 
         /* --- Unsettled redemptions -------------------------- */
-        const urRows: UnsettledRow[] = await urRes.json();
-        setRedempRows(urRows);
-        setRedempSum(urRows.reduce((acc: number, r: any) => acc + Math.abs(+r.nav_delta), 0));
+        // const urRows: UnsettledRow[] = await urRes.json();
+        // setRedempRows(urRows);
+        // setRedempSum(urRows.reduce((acc: number, r: any) => acc + Math.abs(+r.nav_delta), 0));
+        const urJson = await urRes.json();
+        if (Array.isArray(urJson)) {
+          setRedempRows(urJson);
+          setRedempSum(
+            urJson.reduce((acc: number, r: any) => acc + Math.abs(+r.nav_delta), 0)
+          );
+        }
 
         /* --- NAV + Dividend rows ------------------------------ */
-        setNavRows(await ndRes.json());
+        // setNavRows(await ndRes.json());
+        const ndJson = await ndRes.json();
+        if (Array.isArray(ndJson)) {
+          setNavRows(ndJson);
+        }
       } catch (err) {
         console.error("Dashboard fetch error:", err);
       }

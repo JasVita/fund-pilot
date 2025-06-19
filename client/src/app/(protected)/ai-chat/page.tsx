@@ -29,7 +29,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
 
 /* ─── types ─── */
 interface Message {
@@ -100,7 +100,7 @@ export default function AIChatPage() {
     setInput("");
     setThinking(true);
     // make request to server
-    const {data} = await axios.post(`${API_BASE}/ai-chat`, { question: user.content });
+    const {data} = await axios.post(`${API_BASE}/ai-chat`, { question: user.content }, { withCredentials: true });
     // console.log("data", data);
 
     /* pretend we call an LLM */

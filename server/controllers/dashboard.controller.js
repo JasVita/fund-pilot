@@ -4,7 +4,10 @@ const { pool } = require("../config/db");
  * GET  /dashboard/unsettled-redemption
  * Calls: get_unsettled_redeem_6m()
  */
-exports.unsettledRedemption = async (_req, res) => {
+exports.unsettledRedemption = async (req, res) => {
+  const user = req.auth;
+  console.log("[unsettledRedemption] User:", user.email, "Role:", user.role, "Company:", user.company_id);
+
   try {
     const { rows } = await pool.query("SELECT * FROM get_unsettled_redeem_6m();");
     res.json(rows);
@@ -21,7 +24,10 @@ exports.unsettledRedemption = async (_req, res) => {
  */
 const defaultAccount = "233569-20010";   
 
-exports.netCash = async (_req, res) => {
+exports.netCash = async (req, res) => {
+  const user = req.auth;
+  console.log("[netCash] User:", user.email, "Role:", user.role, "Company:", user.company_id);
+
   try {
     // 12-month history for the default account
     const { rows } = await pool.query(
@@ -52,7 +58,10 @@ exports.netCash = async (_req, res) => {
  * Calls: get_nav_dividend_last6m()
  * Returns [{ period:"YYYY-MM", nav:1234.56, dividend:789.01 }, …]
  */
-exports.navVsDiv = async (_req, res) => {
+exports.navVsDiv = async (req, res) => {
+  const user = req.auth;
+  console.log("[navVsDiv] Accessed by:", user.email, "Role:", user.role, "Company:", user.company_id);
+
   try {
     // const { rows } = await pool.query("SELECT * FROM get_nav_dividend_last6m();");
     // res.json(rows);

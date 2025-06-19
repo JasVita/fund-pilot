@@ -162,3 +162,15 @@ exports.investorHoldings = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.listInvestors = async (req, res) => {
+  const cid = req.auth.role === "super"
+            ? req.query.company_id || req.auth.company_id // allow super to pick
+            : req.auth.company_id;
+
+  const { rows } = await pool.query(
+    "SELECT * FROM investors WHERE company_id = $1",
+    [cid]
+  );
+  res.json(rows);
+};

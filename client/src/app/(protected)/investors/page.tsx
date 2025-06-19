@@ -106,7 +106,7 @@ export default function InvestorsPage() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch(`${API_BASE}/investors/portfolio?page=${page}`);
+        const r = await fetch(`${API_BASE}/investors/portfolio?page=${page}`, { credentials: "include" });
         const j: { page: number; pageCount: number; rows: Investor[] } =
           await r.json();
         setRows(j.rows);
@@ -128,9 +128,8 @@ export default function InvestorsPage() {
       try {
         setLoadingHoldings(true);
         const r = await fetch(
-          `${API_BASE}/investors/holdings?investor=${encodeURIComponent(
-            selected.investor
-          )}`
+          `${API_BASE}/investors/holdings?investor=${encodeURIComponent(selected.investor)}`,
+          { credentials: "include" }
         );
         const j: { rows: Holding[] } = await r.json();
         setHoldings(j.rows);
@@ -162,12 +161,12 @@ export default function InvestorsPage() {
         <div className="flex-1 overflow-x-auto">
           <Table className="w-full table-fixed [&_td]:truncate [&_th]:truncate">
             <colgroup>
-              <col style={{ width: "26%" }} className="max-w-[220px]" /> {/* Investor – allow 220 px then truncate */}
-              <col style={{ width: "14%" }} className="max-w-[110px]" /> {/* Class */}
-              <col style={{ width: "14%" }} className="max-w-[110px]" /> {/* Number Held */}
-              <col style={{ width: "16%" }} className="max-w-[120px]" /> {/* Current NAV */}
-              <col style={{ width: "16%" }} className="max-w-[140px]" /> {/* Unpaid Redeem */}
-              <col style={{ width: "14%" }} className="max-w-[90px]" /> {/* Status */}
+              <col style={{ width: "26%" }} className="max-w-[220px]" />
+              <col style={{ width: "14%" }} className="max-w-[110px]" />
+              <col style={{ width: "14%" }} className="max-w-[110px]" />
+              <col style={{ width: "16%" }} className="max-w-[120px]" />
+              <col style={{ width: "16%" }} className="max-w-[140px]" />
+              <col style={{ width: "14%" }} className="max-w-[90px]" />
             </colgroup>
             <TableHeader>
               <TableRow>
@@ -183,7 +182,7 @@ export default function InvestorsPage() {
             </TableHeader>
 
             <TableBody>
-              {rows.map((inv, idx) => (
+              {(rows ?? []).map((inv, idx) => (
                 <TableRow
                   key={`${inv.investor}-${inv.class ?? "none"}-${idx}`}
                   onClick={() => setSelected(inv)}

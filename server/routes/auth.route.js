@@ -79,6 +79,8 @@ router.get(
       email: user.email,
       name: user.name,
       avatar: user.avatar,
+      role: user.role, 
+      company_id: user.company_id,
     };
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
