@@ -3,7 +3,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const passport = require("passport");
 const requireAuth = require("../middlewares/requireAuth");
-const { findByGoogleId, createFromProfile } = require("../repositories/userRepo");
+const { findByGoogleId, createFromProfile, findByEmail, updateUserProfile } = require("../repositories/userRepo");
 
 const router = express.Router();
 
@@ -31,7 +31,6 @@ router.get(
 router.get(
   "/api/auth/google/callback",
   (req, res, next) => {
-    // Capture the intent (login or signup) from the Google OAuth state param
     req._isSignup = req.query.state === "signup";
     next();
   },
@@ -40,26 +39,41 @@ router.get(
     session: false,
   }),
   async (req, res) => {
-    const googleProfile = req.user; // from passport strategy
+    const googleProfile = req.user;
     const isSignup = req._isSignup;
 
-    let user = await findByGoogleId(googleProfile.id);
+    console.log("\x1b[35m[auth.route] Google callback - isSignup:\x1b[0m", isSignup);
+    console.log("\x1b[35m[auth.route] Google callback - profile:\x1b[0m", googleProfile);
 
-    if (!user && isSignup) {
-      // User is signing up
+    const { findByGoogleId, findByEmail, createFromProfile, updateUserProfile } = require("../repositories/userRepo");
+
+    let user = await findByGoogleId(googleProfile.googleId);
+
+    if (!user) {
+      // Try to match by email
+      user = await findByEmail(googleProfile.email);
+      if (user) {
+        console.log("[auth.route] Found user by email. Updating google_id...");
+        user = await updateUserProfile({
+          id: user.id,
+          googleId: googleProfile.googleId,
+          name: googleProfile.name,
+          avatar: googleProfile.avatar,
+        });
+      }
+    }
+
+    if (!user) {
+      console.log("[auth.route] First-time user. Creating new user...");
       user = await createFromProfile({
-        googleId: googleProfile.id,
+        googleId: googleProfile.googleId,
         email: googleProfile.email,
         name: googleProfile.name,
         avatar: googleProfile.avatar,
       });
     }
 
-    if (!user && !isSignup) {
-      // Trying to login without account
-      return res.redirect(`${process.env.FRONTEND_URL}/signup-required`);
-    }
-
+    // Continue with login
     const payload = {
       sub: user.id,
       email: user.email,
@@ -87,6 +101,7 @@ router.get(
     res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
   }
 );
+
 
 /* ---------- 4) Auth probe ---------- */
 router.get("/api/auth/me", requireAuth, (req, res) => {

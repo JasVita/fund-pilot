@@ -1,37 +1,26 @@
-// config/passport.js
 require("dotenv").config();
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const { findByGoogleId, createFromProfile } = require("../repositories/userRepo");
 
 passport.use(
   new GoogleStrategy(
     {
-      clientID:     process.env.GOOGLE_CLIENT_ID,
+      clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL:  "/api/auth/google/callback"
+      callbackURL: "/api/auth/google/callback",
     },
     async (_access, _refresh, profile, done) => {
       try {
-        let user = await findByGoogleId(profile.id);
+        const googleProfile = {
+          googleId: profile.id,
+          email: profile.emails?.[0]?.value || null,
+          name: profile.displayName,
+          avatar: profile.photos?.[0]?.value || null,
+        };
 
-        // 🔥 Use custom flag for signup
-        const isSignup = profile._json?.isSignup || false;
-        
-        if (!user && isSignup) {
-          user = await createFromProfile({
-            googleId: profile.id,
-            email: profile.emails[0].value,
-            name: profile.displayName,
-            avatar: profile.photos?.[0]?.value || null,
-          });
-        }
+        console.log("\x1b[36m[passport.js] Google profile received:\x1b[0m", googleProfile);
 
-        if (!user && !isSignup) {
-          // User trying to login but not signed up
-          return done(null, false, { message: "No account found. Please sign up." });
-        }
-        return done(null, user);          // plain user object
+        return done(null, googleProfile);
       } catch (err) {
         return done(err);
       }
@@ -39,8 +28,10 @@ passport.use(
   )
 );
 
-// Serialise just the DB id
+// Serialize user.id
 passport.serializeUser((user, done) => done(null, user.id));
+
+// Deserialize user by ID
 passport.deserializeUser(async (id, done) => {
   const { rows } = await require("../config/db").pool.query(
     "SELECT * FROM users WHERE id = $1",

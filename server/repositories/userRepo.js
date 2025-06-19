@@ -23,4 +23,23 @@ async function createFromProfile(profile) {
   return rows[0];
 }
 
-module.exports = { findByGoogleId, createFromProfile };
+async function findByEmail(email) {
+  const { rows } = await pool.query(
+    "SELECT * FROM users WHERE email = $1 LIMIT 1",
+    [email]
+  );
+  return rows[0] || null;
+}
+
+async function updateUserProfile({ id, googleId, name, avatar }) {
+  const { rows } = await pool.query(
+    `UPDATE users
+     SET google_id = $1, name = $2, avatar = $3, updated_at = NOW()
+     WHERE id = $4
+     RETURNING *`,
+    [googleId, name, avatar, id]
+  );
+  return rows[0];
+}
+
+module.exports = { findByGoogleId, createFromProfile, findByEmail, updateUserProfile };

@@ -10,8 +10,8 @@ const TABLE_DEFS = [
         email      VARCHAR(320)        NOT NULL,
         name       VARCHAR(255),
         avatar     TEXT,
-        created_at TIMESTAMPTZ DEFAULT (NOW() AT TIME ZONE 'Asia/Hong_Kong'),
-        updated_at TIMESTAMPTZ DEFAULT (NOW() AT TIME ZONE 'Asia/Hong_Kong')
+        created_at TIMESTAMP DEFAULT (NOW() AT TIME ZONE 'Asia/Hong_Kong'),
+        updated_at TIMESTAMP DEFAULT (NOW() AT TIME ZONE 'Asia/Hong_Kong')
       );
     `
   }
