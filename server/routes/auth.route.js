@@ -3,7 +3,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const passport = require("passport");
 const requireAuth = require("../middlewares/requireAuth");
-const { findByGoogleId, createFromProfile, findByEmail, updateUserProfile } = require("../repositories/userRepo");
+const { findByGoogleId, findByEmail, createFromProfile, updateUserProfile, createWithEmail, verifyLogin } = require("../repositories/userRepo");
 
 const router = express.Router();
 
@@ -104,6 +104,64 @@ router.get(
   }
 );
 
+/* ───────────────── Email SIGN-UP ───────────────── */
+router.post("/api/auth/signup-email", async (req, res) => {
+  
+  const { email, password, name, company_id } = req.body;
+  console.log("[signup-email] incoming:", email);
+
+  if (!email || !password)
+    return res.status(400).json({ error: "E-mail & password required" });
+
+  /* reject duplicates */
+  // if (await findByEmail(email))
+  //   return res.status(409).json({ error: "E-mail already in use" });
+
+  // const user = await createWithEmail({ email, password, name, companyId: company_id });
+  const user = await createWithEmail({ email, password, name, companyId: company_id });
+  console.log("[signup-email] upserted user id:", user.id);
+  issueJwtAndSetCookie(res, user);
+});
+
+/* ───────────────── Email LOGIN ───────────────── */
+router.post("/api/auth/login-email", async (req, res) => {
+  
+  console.log("[login-email] body:", req.body);  
+
+  const { email, password } = req.body;
+  if (!email || !password)
+    return res.status(400).json({ error: "E-mail & password required" });
+
+  const user = await verifyLogin(email, password);
+  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+
+  issueJwtAndSetCookie(res, user);
+});
+
+/* ───────────────── Shared helper ───────────────── */
+function issueJwtAndSetCookie(res, user) {
+  const payload = {
+    sub:        user.id,
+    email:      user.email,
+    name:       user.name,
+    avatar:     user.avatar,
+    role:       user.role,
+    company_id: user.company_id || "",
+  };
+
+  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+  res.cookie("fp_jwt", token, {
+    httpOnly : true,
+    secure   : process.env.ENV !== "dev",
+    sameSite : "lax",
+    domain   : process.env.ENV === "dev" ? "localhost"
+               : process.env.COOKIE_DOMAIN || ".fundpilot.turoid.ai",
+    maxAge   : 7 * 24 * 60 * 60 * 1000,
+  });
+
+  res.json({ ok: true });                    // front-end will redirect
+}
 
 /* ---------- 4) Auth probe ---------- */
 router.get("/api/auth/me", requireAuth, (req, res) => {

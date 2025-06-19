@@ -1,10 +1,46 @@
 "use client";
+import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 
-const GOOGLE_LOGIN = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/google`;
-const GOOGLE_SIGNUP = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/google/signup`;
+
+const API = process.env.NEXT_PUBLIC_API_BASE_URL!;
+const GOOGLE_LOGIN = `${API}/api/auth/google`;
+const GOOGLE_SIGNUP = `${API}/api/auth/google/signup`;
 
 export default function LoginPage() {
+  const router = useRouter();
+
+  /* local state */
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [showPwd,  setShowPwd]        = useState(false);
+  const togglePwd  = () => setShowPwd((v) => !v);
+  const [mode, setMode]         = useState<"login" | "signup">("login");
+  const [err , setErr]          = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr("");
+
+    const endpoint =
+      mode === "login" ? "/api/auth/login-email" : "/api/auth/signup-email";
+
+    const r = await fetch(API + endpoint, {
+      method : "POST",
+      credentials : "include",
+      headers: { "Content-Type": "application/json" },
+      body   : JSON.stringify({ email, password, name: email.split("@")[0] }),
+    });
+
+    if (r.ok) {
+      router.push("/dashboard");
+    } else {
+      const { error } = await r.json();
+      setErr(error ?? "Request failed");
+    }
+  }
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-2">
       {/* Left Hero Section */}
@@ -36,42 +72,51 @@ export default function LoginPage() {
 
       {/* Right Login Section */}
       <div className="flex flex-col justify-center px-10">
-        {/* <div className="mb-20 flex items-center justify-center w-full max-w-sm mx-auto"> */}
-        {/* <div className="mb-20 flex flex-col items-center justify-center w-full max-w-sm mx-auto space-y-4">
-          
-          <h2 className="text-4xl font-semibold">Login</h2>
-        </div> */}
-        {/* <div className="my-8  w-[50%] mx-auto flex items-center">
-        </div> */}
+
         <div className="flex justify-center mb-6">
-          <Image
-            src="/fund-pilot-logo-black.png"
-            alt="Fund Pilot Logo"
-            width={150}
-            height={150}
-            className="object-contain"
-          />
+          <Image src="/fund-pilot-logo-black.png" alt="Fund Pilot Logo" width={150} height={150} className="object-contain" />
         </div>
         {/* Email Login Form */}
-        <form className="space-y-6 w-full max-w-sm mx-auto">
+        <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-sm mx-auto">
           <div>
-            <label className="block text-sm font-medium mb-1">Username or Email</label>
+            <label className="block text-sm font-medium mb-1">Username&nbsp;or&nbsp;Email</label>
             <input
-              type="text"
+              type="email"
               placeholder="Enter Username or Email"
               className="w-full border px-4 py-2 rounded"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
             />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Password</label>
-            <input
-              type="password"
-              placeholder="Enter Password"
-              className="w-full border px-4 py-2 rounded"
-            />
+
+            <div className="relative">
+              <input
+                type={showPwd ? "text" : "password"}
+                placeholder="Enter Password"
+                className="w-full border px-4 py-2 rounded"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+
+              {/* eye / eye-off toggle */}
+              <button
+                type="button"
+                onClick={togglePwd}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                aria-label={showPwd ? "Hide password" : "Show password"}
+              >
+                {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
-          <button type="submit" className="w-full bg-black text-white py-2 rounded hover:bg-gray-800"> Login </button>
-          <button type="submit" className="w-full bg-[#0666CC] text-white py-2 rounded hover:bg-[#0552A3]"> Sign up with Email </button>
+          <button type="submit" className="w-full bg-black text-white py-2 rounded hover:bg-gray-800">{mode === "login" ? "Login" : "Sign up"}</button>
+          <button type="button" onClick={() => setMode(m => (m === "login" ? "signup" : "login"))} className="w-full bg-[#0666CC] text-white py-2 rounded hover:bg-[#0552A3]" >
+            {mode === "login" ? "Sign up with Email" : "Back to Login"}
+          </button>
         </form>
         
         {/* Separator */}
