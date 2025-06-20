@@ -1,25 +1,43 @@
 require("dotenv").config();
-const express = require("express");
-const cors    = require("cors");
+require("dotenv").config();
+const express        = require("express");
+const cors           = require("cors");
+const cookieParser   = require("cookie-parser");
+const passport       = require("passport");
 const { verifyConnection } = require("./config/db");
-const dashboardRoutes = require("./routes/dashboard.route");
-const investorsRoutes = require("./routes/investors.route");
-const aiChatRoutes    = require("./routes/aichat.route");
+const { ensureTables }    = require("./config/dbInit");
+require("./config/passport");
 
 const app = express();
 app.use(express.json());
-if (process.env.ENV === "dev") app.use(cors());
 
-app.use(dashboardRoutes);
-app.use(investorsRoutes);
-app.use(aiChatRoutes);          // ← your new split route
+if (process.env.ENV === "dev") {
+  app.use(
+    cors({
+      origin: process.env.FRONTEND_URL,
+      credentials: true
+    })
+  );
+}
 
-app.get("/health", (_, res) => res.send("fundpilot API is healthy!")); 
+app.use(cookieParser());
+app.use(passport.initialize());
+
+// ----- routes -----
+app.use(require("./routes/auth.route"));
+app.use(require("./routes/dashboard.route"));
+app.use(require("./routes/investors.route"));
+app.use(require("./routes/aichat.route"));
+
+app.use(require("./routes/admin.route"));
+
+app.get("/health", (_, res) => res.send("fundpilot API is healthy!"));
 
 const PORT = process.env.PORT || 5003;
 (async () => {
-
-  await verifyConnection(); 
-  app.listen(PORT, () => console.log(`🚀  API running on http://localhost:${PORT}`)); //2) start server.
-
+  await verifyConnection();
+  await ensureTables();
+  app.listen(PORT, () =>
+    console.log(`🚀 API running on http://localhost:${PORT}`)
+  );
 })();
