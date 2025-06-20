@@ -3,7 +3,14 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const passport = require("passport");
 const requireAuth = require("../middlewares/requireAuth");
-const { findByGoogleId, findByEmail, createFromProfile, updateUserProfile, createWithEmail, verifyLogin } = require("../repositories/userRepo");
+const {
+  findByGoogleId,
+  findByEmail,
+  createFromProfile,
+  updateUserProfile,
+  createWithEmail,
+  verifyLogin,
+} = require("../repositories/userRepo");
 
 const router = express.Router();
 
@@ -79,7 +86,7 @@ router.get(
       email: user.email,
       name: user.name,
       avatar: user.avatar,
-      role: user.role, 
+      role: user.role,
       company_id: user.company_id,
     };
 
@@ -87,16 +94,14 @@ router.get(
       expiresIn: "7d",
     });
 
-    const cookieDomain =
-      process.env.ENV === "dev"
-        ? "localhost"
-        : process.env.COOKIE_DOMAIN || ".fundpilot.turoid.ai";
+    const cookieDomain = process.env.ENV === "dev" ? "localhost" : process.env.COOKIE_DOMAIN || ".fundpilot.turoid.ai";
 
     res.cookie("fp_jwt", token, {
       httpOnly: true,
       secure: process.env.ENV !== "dev",
       sameSite: "lax",
       domain: cookieDomain,
+      path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -106,12 +111,10 @@ router.get(
 
 /* ───────────────── Email SIGN-UP ───────────────── */
 router.post("/api/auth/signup-email", async (req, res) => {
-  
   const { email, password, name, company_id } = req.body;
-  console.log("[signup-email] incoming:", email);
+  console.log("[signup-email] incoming:", email, "[signup-email] plain password:", password);
 
-  if (!email || !password)
-    return res.status(400).json({ error: "E-mail & password required" });
+  if (!email || !password) return res.status(400).json({ error: "E-mail & password required" });
 
   /* reject duplicates */
   // if (await findByEmail(email))
@@ -125,12 +128,10 @@ router.post("/api/auth/signup-email", async (req, res) => {
 
 /* ───────────────── Email LOGIN ───────────────── */
 router.post("/api/auth/login-email", async (req, res) => {
-  
-  console.log("[login-email] body:", req.body);  
+  console.log("[login-email] body:", req.body, "[login-email] incoming pwd:", req.body.password);
 
   const { email, password } = req.body;
-  if (!email || !password)
-    return res.status(400).json({ error: "E-mail & password required" });
+  if (!email || !password) return res.status(400).json({ error: "E-mail & password required" });
 
   const user = await verifyLogin(email, password);
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
@@ -141,26 +142,26 @@ router.post("/api/auth/login-email", async (req, res) => {
 /* ───────────────── Shared helper ───────────────── */
 function issueJwtAndSetCookie(res, user) {
   const payload = {
-    sub:        user.id,
-    email:      user.email,
-    name:       user.name,
-    avatar:     user.avatar,
-    role:       user.role,
+    sub: user.id,
+    email: user.email,
+    name: user.name,
+    avatar: user.avatar,
+    role: user.role,
     company_id: user.company_id || "",
   };
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" });
 
   res.cookie("fp_jwt", token, {
-    httpOnly : true,
-    secure   : process.env.ENV !== "dev",
-    sameSite : "lax",
-    domain   : process.env.ENV === "dev" ? "localhost"
-               : process.env.COOKIE_DOMAIN || ".fundpilot.turoid.ai",
-    maxAge   : 7 * 24 * 60 * 60 * 1000,
+    httpOnly: true,
+    secure: process.env.ENV !== "dev",
+    sameSite: "lax",
+    domain: process.env.ENV === "dev" ? "localhost" : process.env.COOKIE_DOMAIN || ".fundpilot.turoid.ai",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
-  res.json({ ok: true });                    // front-end will redirect
+  res.json({ ok: true }); // front-end will redirect
 }
 
 /* ---------- 4) Auth probe ---------- */

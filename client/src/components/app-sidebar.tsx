@@ -130,7 +130,15 @@ const projects = [
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth();
   // console.log("%c[Sidebar] user from context:", "color:violet", user);
-
+  /* ── debug ─────────────────────────────────────────── */
+  React.useEffect(() => {
+    console.log("[AppSidebar] Nav-user payload →", {
+      name:   user?.name,
+      email:  user?.email,
+      avatar: user?.avatar || "/logo-white-table.png",
+    });
+  }, [user]);
+  /* ─────────────────────────────────────────────────── */
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>

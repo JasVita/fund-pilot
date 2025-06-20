@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 
 
@@ -11,6 +12,7 @@ const GOOGLE_SIGNUP = `${API}/api/auth/google/signup`;
 
 export default function LoginPage() {
   const router = useRouter();
+  const { refresh } = useAuth(); 
 
   /* local state */
   const [email, setEmail]       = useState("");
@@ -35,6 +37,7 @@ export default function LoginPage() {
     });
 
     if (r.ok) {
+      await refresh();
       router.push("/dashboard");
     } else {
       const { error } = await r.json();

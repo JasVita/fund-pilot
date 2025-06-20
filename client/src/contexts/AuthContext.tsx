@@ -1,54 +1,87 @@
-// src/contexts/AuthContext.tsx
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { apiGet, API_BASE } from "@/lib/api";
 
-interface User {
-  sub: number;
-  email: string;
-  name: string;
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
+
+export interface User {
+  sub:    number;
+  email:  string;
+  name:   string;
   avatar: string | null;
 }
 
 interface AuthCtx {
-  user: User | null;
-  loading: boolean;
-  logout(): Promise<void>;
+  user:     User | null;
+  loading:  boolean;
+  /** force-refresh the user object (e.g. right after log-in/out) */
+  refresh(): Promise<void>;
+  logout():  Promise<void>;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Context setup                                                     */
+/* ------------------------------------------------------------------ */
 
 const AuthContext = createContext<AuthCtx | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser]   = useState<User | null>(null);
+/* ------------------------------------------------------------------ */
+/*  Provider                                                          */
+/* ------------------------------------------------------------------ */
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser]       = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  /** Always ask the backend once after hydration */
+  /** shared fetcher so we can reuse it for `refresh()` */
+  const fetchMe = async () => {
+    const data = await apiGet<{ ok: boolean; user: User }>("/api/auth/me");
+    if (data?.ok) setUser(data.user);
+  };
+
+  /* run once on first mount */
   useEffect(() => {
     (async () => {
-      const data = await apiGet<{ ok: boolean; user: User }>("/api/auth/me");
-      // console.log("%c[Auth] /api/auth/me →", "color:orange", data);
-
-      if (data?.ok) setUser(data.user);
-      setLoading(false);
+      const not_login = !window.location.pathname.startsWith("/login");
+      if (not_login) {
+        await fetchMe();
+        setLoading(false);
+      }
     })();
   }, []);
 
+  /* ---------------------------------------------------------------- */
+  /*  Public helpers                                                  */
+  /* ---------------------------------------------------------------- */
+
+  const refresh = async () => {
+    await fetchMe();
+  };
+
   const logout = async () => {
     await fetch(`${API_BASE}/api/auth/logout`, {
-      method: "POST",
+      method:      "POST",
       credentials: "include",
     });
     setUser(null);
     window.location.href = "/login";
   };
 
+  /* ---------------------------------------------------------------- */
+
   return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
+    <AuthContext.Provider value={{ user, loading, refresh, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/*  Hook                                                              */
+/* ------------------------------------------------------------------ */
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);

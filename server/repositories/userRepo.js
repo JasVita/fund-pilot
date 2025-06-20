@@ -1,6 +1,17 @@
 const { pool } = require("../config/db");
-const bcrypt       = require("bcrypt");
-const SALT_ROUNDS  = 10;    
+// const bcrypt       = require("bcrypt");
+// const SALT_ROUNDS  = 10;    
+
+// ──────────────────────────────────────────────────────────
+// TEMP switch: set to `true` when you are ready to hash
+// ──────────────────────────────────────────────────────────
+const USE_BCRYPT   = false;
+let   bcrypt, SALT_ROUNDS;
+
+if (USE_BCRYPT) {
+  bcrypt      = require("bcrypt");
+  SALT_ROUNDS = 10;
+}
 
 async function findByGoogleId(googleId) {
   const { rows } = await pool.query(
@@ -46,8 +57,11 @@ async function updateUserProfile({ id, googleId, name, avatar }) {
 
 /* ─────────── NEW: signup with e-mail ─────────── */
 async function createWithEmail({ email, password, name, companyId }) {
-  const hash = await bcrypt.hash(password, SALT_ROUNDS);
+
+  // const hash = await bcrypt.hash(password, SALT_ROUNDS);
+  const hash = USE_BCRYPT ? await bcrypt.hash(password, SALT_ROUNDS) : password;
   console.log("[createWithEmail] bcrypt hash:", hash);
+  
   /* ① try to INSERT.  If the e-mail already exists, UPDATE the row
        (fill password_hash & company/role if still NULL)             */
   const { rows } = await pool.query(
