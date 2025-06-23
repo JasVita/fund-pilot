@@ -24,7 +24,7 @@ router.get("/api/admin/dashboard",  requireAuth, requireAdmin, (req, res) => {
 
 /* ── super-user extras ────────────────────────────────── */
 router.get("/api/super/dashboard",  requireAuth, requireSuper, (_req, res) => {
-  res.json({ message: "Hello, Super-user – here is everything." });
+  res.json({ message: "Hello, Super-user - here is everything." });
 });
 
 module.exports = router;

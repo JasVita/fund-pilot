@@ -14,6 +14,15 @@ const {
 
 const router = express.Router();
 
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.ENV !== "dev", // true in prod
+  sameSite: process.env.ENV === "dev" ? "lax" : "none", // cross-sub-domain POSTs need "none"
+  domain: process.env.ENV === "dev" ? "localhost" : process.env.COOKIE_DOMAIN || ".fundpilot.turoid.ai",
+  path: "/",
+};
+const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
+
 /* ---------- 1) Kick off Google LOGIN ---------- */
 router.get(
   "/api/auth/google",
@@ -96,14 +105,15 @@ router.get(
 
     const cookieDomain = process.env.ENV === "dev" ? "localhost" : process.env.COOKIE_DOMAIN || ".fundpilot.turoid.ai";
 
-    res.cookie("fp_jwt", token, {
-      httpOnly: true,
-      secure: process.env.ENV !== "dev",
-      sameSite: "lax",
-      domain: cookieDomain,
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    // res.cookie("fp_jwt", token, {
+    //   httpOnly: true,
+    //   secure: process.env.ENV !== "dev",
+    //   sameSite: "lax",
+    //   domain: cookieDomain,
+    //   path: "/",
+    //   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    // });
+    res.cookie("fp_jwt", token, { ...COOKIE_OPTS, maxAge: ONE_WEEK });
 
     res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
   }
@@ -152,14 +162,15 @@ function issueJwtAndSetCookie(res, user) {
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-  res.cookie("fp_jwt", token, {
-    httpOnly: true,
-    secure: process.env.ENV !== "dev",
-    sameSite: "lax",
-    domain: process.env.ENV === "dev" ? "localhost" : process.env.COOKIE_DOMAIN || ".fundpilot.turoid.ai",
-    path: "/",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  // res.cookie("fp_jwt", token, {
+  //   httpOnly: true,
+  //   secure: process.env.ENV !== "dev",
+  //   sameSite: "lax",
+  //   domain: process.env.ENV === "dev" ? "localhost" : process.env.COOKIE_DOMAIN || ".fundpilot.turoid.ai",
+  //   path: "/",
+  //   maxAge: 7 * 24 * 60 * 60 * 1000,
+  // });
+  res.cookie("fp_jwt", token, { ...COOKIE_OPTS, maxAge: ONE_WEEK });
 
   res.json({ ok: true }); // front-end will redirect
 }
@@ -172,7 +183,7 @@ router.get("/api/auth/me", requireAuth, (req, res) => {
 
 /* ---------- 5) Logout ---------- */
 router.post("/api/auth/logout", (_req, res) => {
-  res.clearCookie("fp_jwt");
+  res.clearCookie("fp_jwt", COOKIE_OPTS);
   res.json({ ok: true });
 });
 
