@@ -14,7 +14,7 @@ import type { TableRowData } from "@/components/pdfGenerator/InvestmentTable";
 
 /* ---- helpers ----------------------------------------------------- */
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
 
 const usd = (v: number, compact = false) =>
   new Intl.NumberFormat("en-US", {
