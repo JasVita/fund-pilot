@@ -10,6 +10,7 @@ interface KPICardProps {
   icon: LucideIcon;
   description?: string;
   dimmed?: boolean;
+  right?: ReactNode; 
 }
 
 function KPICard({
@@ -20,6 +21,7 @@ function KPICard({
   icon: Icon,
   description,
   dimmed = false,
+  right,  
 }: KPICardProps) {
   /* ─ colour logic (unchanged) ─ */
   const inferred =
@@ -41,9 +43,10 @@ function KPICard({
   return (
     <Card className={`transition-all duration-200 hover:shadow-md ${dimmed ? "bg-muted/100" : ""}`}>
       <CardContent className="px-6">
-        <div className="flex items-start gap-2">
+        {/* <div className="flex items-start justify-between gap-4"> */}
+        <div className="w-full flex flex-col sm:flex-row items-start justify-between gap-2 sm:gap-4 flex-nowrap">
           
-          <div className="space-y-1">
+          <div className="space-y-1 w-full min-w-0">
             {/* title */}
             {/* <p className="text-sm font-medium text-muted-foreground">{title}</p> */}
             <div className="flex items-start gap-2">
@@ -62,6 +65,7 @@ function KPICard({
               <p className="text-xs text-muted-foreground">{description}</p>
             )}
           </div>
+          {right && <div className="shrink-0 -mt-1 -mr-1">{right}</div>}
         </div>
       </CardContent>
     </Card>

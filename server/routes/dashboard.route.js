@@ -8,6 +8,7 @@ const {
   unsettledRedemption,
   netCash,
   navVsDiv,
+  aumHistory
 } = require("../controllers/dashboard.controller");
 
 const router = express.Router();
@@ -16,6 +17,7 @@ router.get("/dashboard/unsettled-redemption", requireAuth, requireRole, unsettle
 // now accepts  ?email=nick@turoid.ai   (parameter is required)
 router.get("/dashboard/net-cash", requireAuth, requireRole, netCash);
 router.get("/dashboard/nav-value-totals-vs-div", requireAuth, requireRole, navVsDiv);
+router.get("/dashboard/aum",                   requireAuth, requireRole, aumHistory);
 
 /* ── admin-only extras ────────────────────────────────── */
 router.get("/api/admin/dashboard",  requireAuth, requireAdmin, (req, res) => {

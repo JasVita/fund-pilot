@@ -24,6 +24,12 @@ const usdCompact = (v: number) =>
     maximumFractionDigits: 1,
   }).format(v);
 
+const uiMonthToIso = (label: string) => {
+  // "June 2025"  ->  "2025-06"
+  const [name, year] = label.split(" ");
+  const month = new Date(`${name} 1, ${year}`).getMonth() + 1; // 0-based
+  return `${year}-${month.toString().padStart(2, "0")}`;
+};
 /* ─── Helper styles ─────────────────────────────────── */
 const chartBox = "relative w-full h-[300px]";
 
@@ -40,50 +46,56 @@ type UnsettledRow = {
   nav_delta: string;      // negative number as a string
   snapshot_date: string;  // e.g. "2025-01-28T00:00:00.000Z"
 };
+
 /* ─── Component ─────────────────────────────────────── */
 export default function DashboardPage() {
-  /* -------- state ------------------------------------------- */
-  const [netCashLatest, setNetCashLatest] = useState<string>("—");
-  const [netCashHistory, setNetCashHistory] = useState<{ month_start: string; closing_avail: string }[]>([]);
+  /* Net-cash KPI & history */
+  const [netCashHistory , setNetCashHistory] = useState< { month_start:string; closing_avail:string }[] >([]);
+  const [monthOptions   , setMonthOptions  ] = useState<string[]>([]);
+  const [monthFilter    , setMonthFilter   ] = useState<string>(""); // dropdown value
+  const [monthValue     , setMonthValue    ] = useState<string>("—");
 
-  const [redempRows, setRedempRows] = useState<UnsettledRow[]>([]);
+  /* AUM KPI (snapshot list with paging) */
+  const [aumRows        , setAumRows      ] = useState< { snapshot:string; nav_total:string }[] >([]);
+  const [aumOptions     , setAumOptions   ] = useState<string[]>([]);
+  const [aumSelected    , setAumSelected  ] = useState<string>("");  // dropdown value
+  const [aumValue       , setAumValue     ] = useState<string>("—");
+  const [aumNextAfter   , setAumNextAfter ] = useState<string|null>(null);
 
-  const [redempSum, setRedempSum] = useState<number | null>(null);
-  const [navRows, setNavRows] = useState<{ period: string; nav: string; dividend: string }[]>([]);
+  /* Unsettled redemptions */
+  const [redempRows     , setRedempRows   ] = useState<UnsettledRow[]>([]);
+  const [redempSum      , setRedempSum    ] = useState<number|null>(null);
 
+  /* NAV vs. Dividend bar-chart */
+  const [navRows        , setNavRows      ] = useState< { period:string; nav:string; dividend:string }[] >([]);
   /* -------- fetch both endpoints once ----------------------- */
   useEffect(() => {
     (async () => {
       try {
-        const [ncRes, urRes, ndRes] = await Promise.all([
+        const [ncRes, urRes, ndRes, aumRes] = await Promise.all([
           fetch(`${API_BASE}/dashboard/net-cash`, { credentials: "include" }),
           fetch(`${API_BASE}/dashboard/unsettled-redemption`, { credentials: "include" }),
           fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`, { credentials: "include" }),
-          // fetch(`${API_BASE}/dashboard/net-cash`),
-          // fetch(`${API_BASE}/dashboard/unsettled-redemption`),
-          // fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`),
+          fetch(`${API_BASE}/dashboard/aum`, { credentials:"include" }),
+
         ]);
 
         /* --- Net-cash --------------------------------------- */
-        // const ncJson: {
-        //   latest: number | null;
-        //   history: { month_start: string; closing_avail: string }[];
-        // } = await ncRes.json();
-
-        // if (ncJson.latest != null) setNetCashLatest(usdCompact(ncJson.latest));
-        // setNetCashHistory(ncJson.history);
         const ncJson = await ncRes.json();
         if (Array.isArray(ncJson.history)) {
           setNetCashHistory(ncJson.history);
-          if (ncJson.latest != null) {
-            setNetCashLatest(usdCompact(ncJson.latest));
-          }
+
+          /* --- build the month list once we know the history --- */
+          const opts = ncJson.history
+            .map((r: any) => {
+              const d = new Date(r.month_start);
+              return d.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }); 
+            });
+          setMonthOptions(opts);
+          if (!monthFilter && opts[0]) setMonthFilter(opts[0]);  // pick the most-recent if nothing selected yet
         }
 
         /* --- Unsettled redemptions -------------------------- */
-        // const urRows: UnsettledRow[] = await urRes.json();
-        // setRedempRows(urRows);
-        // setRedempSum(urRows.reduce((acc: number, r: any) => acc + Math.abs(+r.nav_delta), 0));
         const urJson = await urRes.json();
         if (Array.isArray(urJson)) {
           setRedempRows(urJson);
@@ -96,7 +108,16 @@ export default function DashboardPage() {
         // setNavRows(await ndRes.json());
         const ndJson = await ndRes.json();
         if (Array.isArray(ndJson)) {
-          setNavRows(ndJson);
+          setNavRows(ndJson); 
+        }
+
+        const aumJson = await aumRes.json();                              // [{snapshot,nav_total}, …]
+        if (Array.isArray(aumJson) && aumJson.length) {
+          setAumRows(aumJson);
+          setAumOptions(Array.from(new Set(aumJson.map(r => r.snapshot))));
+          setAumSelected(aumJson[0].snapshot);              // newest
+          setAumValue(usdCompact(+aumJson[0].nav_total));
+          setAumNextAfter(aumJson.at(-1)!.snapshot);        // last row’s date → next page cursor
         }
       } catch (err) {
         console.error("Dashboard fetch error:", err);
@@ -104,12 +125,83 @@ export default function DashboardPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!monthFilter && monthOptions.length) {
+      setMonthFilter(monthOptions[0]);        // newest = first in list
+    }
+  }, [monthOptions, monthFilter]);
+
+  /* -------- whenever the month drop-down changes ------------ */
+  useEffect(() => {
+    (async () => {
+      const iso = uiMonthToIso(monthFilter);                 // 2025-06
+      try {
+        const res   = await fetch(
+          `${API_BASE}/dashboard/net-cash?month=${iso}`,
+          { credentials: "include" }
+        );
+        const json  = await res.json();                      // { latest, history:[1 row] }
+        const row   = json.history?.[0];
+        setMonthValue(row ? usdCompact(+row.closing_avail) : "—");
+
+        } catch (e) {
+          console.error("month fetch", e);
+          setMonthValue("—");
+        }
+
+
+    })();
+  }, [monthFilter]);
+
+  useEffect(() => {
+
+    if (!aumSelected) return;
+    const row = aumRows.find(r => r.snapshot === aumSelected);
+    setAumValue(row ? usdCompact(+row.nav_total) : "—");
+  }, [aumSelected, aumRows]);
+  /* load more AUM rows when user scrolls to bottom of the dropdown */
+  const handleAumScroll = async (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+
+    /*  stop if the user hasn’t reached ~100 px from the bottom  */
+    if (el.scrollTop + el.clientHeight < el.scrollHeight - 100) return;
+
+    /*  no more pages to fetch  */
+    if (!aumNextAfter) return;
+
+    try {
+      const res  = await fetch(
+        `${API_BASE}/dashboard/aum?after=${aumNextAfter}&limit=30`,
+        { credentials: "include" }
+      );
+      const more = await res.json();               // [{ snapshot, nav_total }, …]
+
+      if (Array.isArray(more) && more.length) {
+        /* ---------- 1) rows ---------------------------------- */
+        setAumRows(prev => [...prev, ...more]);
+
+        /* ---------- 2) options (dedup to avoid duplicate keys) */
+        setAumOptions(prev => {
+          const merged = [...prev, ...more.map(r => r.snapshot)];
+          return Array.from(new Set(merged));       // unique snapshot dates
+        });
+
+        /* ---------- 3) next cursor --------------------------- */
+        setAumNextAfter(more.at(-1)!.snapshot);     // newest “old” date
+      } else {
+        setAumNextAfter(null);                      // reached the end
+      }
+    } catch (err) {
+      console.error("load more AUM:", err);
+    }
+  };
+
   /* -------- derived metrics --------------------------------- */
   const pendingCount = redempRows.length;
   const redempValue = redempSum != null ? usdCompact(redempSum) : "—";
   const latestCashNumber = netCashHistory[0] ? Number(netCashHistory[0].closing_avail) : null;
   const redempPct = latestCashNumber && redempSum ? (redempSum / latestCashNumber) * 100 : null;
-
+  
   /* -------- Top-5 redemption rows ----------------------------- */
   const top5Redemptions = useMemo(() => {
     if (!redempRows.length || !latestCashNumber) return [];
@@ -217,8 +309,38 @@ export default function DashboardPage() {
       {/* KPI cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* <KPICard title="Net Cash" value="$158.2M" change="+12.5%" changeType="positive" description="vs previous period" icon={DollarSign} /> */}
-        <KPICard title="Net Cash" value={netCashLatest} change="" changeType="neutral" description="" icon={DollarSign} />
-        <KPICard title="MoM P&L(Greyed for mockup only)" value="+8.7%" change="+2.3% vs avg" changeType="positive" description="Month over month" icon={TrendingUp} dimmed />
+        <KPICard title="Net Cash" value={monthValue}     change="" changeType="neutral" description="" icon={DollarSign}
+                  right={
+                      <Select value={monthFilter} onValueChange={setMonthFilter}>
+                        <SelectTrigger className="h-7 w-28 text-xs">
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {monthOptions.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+          }/>
+
+        <KPICard title="AUM" value={aumValue} change="" changeType="positive" description="" icon={TrendingUp} 
+                  right={
+                      <Select value={aumSelected} onValueChange={setAumSelected}>
+                        <SelectTrigger className="h-7 w-28 text-xs">
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent onScroll={handleAumScroll} className="max-h-60 overflow-y-auto">
+                          {aumOptions.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+          }/>
+
         <KPICard title="Unsettled Redemptions" value={<span className="text-red-600">{redempValue}</span>} change={`${pendingCount} pending`} changeType="neutral" description="Awaiting settlement" icon={AlertTriangle} />
       </div>
 
