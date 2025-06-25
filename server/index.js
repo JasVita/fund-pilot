@@ -27,6 +27,7 @@ app.use(passport.initialize());
 app.use(require("./routes/auth.route"));
 app.use(require("./routes/dashboard.route"));
 app.use(require("./routes/investors.route"));
+app.use(require("./routes/funds.route"));
 app.use(require("./routes/aichat.route"));
 
 app.use(require("./routes/admin.route"));

@@ -7,14 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext, PaginationLink } from "@/components/ui/pagination";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ReportGeneratorDialog from "@/components/pdfGenerator/ReportGeneratorDialog";
 import type { TableRowData } from "@/components/pdfGenerator/InvestmentTable";
 
 
 /* ---- helpers ----------------------------------------------------- */
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
 
 const usd = (v: number, compact = false) =>
   new Intl.NumberFormat("en-US", {
@@ -93,8 +92,16 @@ type Holding = {
   pnl_pct: string;        
 };
 
+type Fund = { fund_id:number; fund_name:string };   
+
 /* --------------------------------------------------------------- */
 export default function InvestorsPage() {
+  // const [funds       , setFunds       ] = useState<Fund[]>([]);    // NEW
+  // const [selectedFund, setSelectedFund] = useState<number|null>(null);
+  const [funds       , setFunds       ] = useState<Fund[]>([]);
+  /** show Hywin by default so the table never starts empty */
+  const [selectedFund, setSelectedFund] = useState<number>(1);  
+
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<Investor[]>([]);
   const [pageCount, setPageCount] = useState(1);
@@ -102,11 +109,34 @@ export default function InvestorsPage() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [loadingHoldings, setLoadingHoldings] = useState(false);
 
-  /* fetch rows whenever page changes ----------------------------- */
+  /* -------------------------------------------------------------- *
+  * 1. get the list of funds once on mount (UI-only for now)
+  * -------------------------------------------------------------- */
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch(`${API_BASE}/investors/portfolio?page=${page}`, { credentials: "include" });
+        const r = await fetch(`${API_BASE}/funds`, { credentials: "include" });
+        const j: Fund[] = await r.json();
+        setFunds(j);                               // dropdown content
+        /* keep the table fixed on Hywin (fund_id = 1) until
+          the back-end filter is ready, so we don’t touch `selectedFund` */
+      } catch (err) {
+        console.error("fund list fetch:", err);
+      }
+    })();
+  }, []);
+
+  /* -------------------------------------------------------------- *
+  * 2. fetch investor rows – hard-wired to Hywin for now
+  *    (removes React warning about changing deps length)
+  * -------------------------------------------------------------- */
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(
+          `${API_BASE}/investors/portfolio?page=${page}`,   // ⬅ no fund_id yet
+          { credentials: "include" }
+        );
         const j: { page: number; pageCount: number; rows: Investor[] } =
           await r.json();
         setRows(j.rows);
@@ -115,9 +145,11 @@ export default function InvestorsPage() {
         console.error("investor fetch:", err);
       }
     })();
-  }, [page]);
+  }, [page]);                                           // <- single stable dep
 
-  /* fetch holdings when investor selected ----------------------------- */
+  /* -------------------------------------------------------------- *
+  * 3. fetch holdings whenever a table row is selected
+  * -------------------------------------------------------------- */
   useEffect(() => {
     if (!selected) {
       setHoldings([]);
@@ -128,7 +160,9 @@ export default function InvestorsPage() {
       try {
         setLoadingHoldings(true);
         const r = await fetch(
-          `${API_BASE}/investors/holdings?investor=${encodeURIComponent(selected.investor)}`,
+          `${API_BASE}/investors/holdings?investor=${encodeURIComponent(
+            selected.investor
+          )}`,
           { credentials: "include" }
         );
         const j: { rows: Holding[] } = await r.json();
@@ -142,14 +176,81 @@ export default function InvestorsPage() {
     })();
   }, [selected]);
 
+  // /* -------------------------------------------------------------- *
+  //  * 1. get the list of funds once on mount
+  //  * -------------------------------------------------------------- */
+  // useEffect(() => {
+  //   (async () => {
+  //     try {
+  //       const r = await fetch(`${API_BASE}/funds`, { credentials:"include" });
+  //       const j: Fund[] = await r.json();
+  //       setFunds(j);
+  //       // pick first fund by default
+  //       // if (j.length && selectedFund === null) setSelectedFund(j[0].fund_id);
+  //     } catch (err) {
+  //       console.error("fund list fetch:", err);
+  //     }
+  //   })();
+  // }, []);
+  
+  // useEffect(() => {
+  //   if (!selectedFund) return;  
+  //   (async () => {
+  //     try {
+  //       // const r = await fetch(`${API_BASE}/investors/portfolio?page=${page}&fund_id=${selectedFund ?? ""}`, { credentials: "include" });
+  //       /** ⤵ until the server filter is fixed, only send fund_id for Hywin (1)    */
+  //       const url =
+  //         selectedFund === 1
+  //           ? `${API_BASE}/investors/portfolio?page=${page}`
+  //           : `${API_BASE}/investors/portfolio?page=${page}&fund_id=${selectedFund}`;
+  //       const r = await fetch(url, { credentials: "include" });
+        
+  //       const j: { page: number; pageCount: number; rows: Investor[] } =
+  //         await r.json();
+  //       setRows(j.rows);
+  //       setPageCount(j.pageCount);
+  //     } catch (err) {
+  //       console.error("investor fetch:", err);
+  //     }
+  //   })();
+  // }, [page, selectedFund]); 
+
+  // /* fetch holdings when investor selected ----------------------------- */
+  // useEffect(() => {
+  //   if (!selected) {
+  //     setHoldings([]);
+  //     return;
+  //   }
+
+  //   (async () => {
+  //     try {
+  //       setLoadingHoldings(true);
+  //       const r = await fetch(
+  //         `${API_BASE}/investors/holdings?investor=${encodeURIComponent(selected.investor)}`,
+  //         { credentials: "include" }
+  //       );
+  //       const j: { rows: Holding[] } = await r.json();
+  //       setHoldings(j.rows);
+  //     } catch (err) {
+  //       console.error("holdings fetch:", err);
+  //       setHoldings([]);
+  //     } finally {
+  //       setLoadingHoldings(false);
+  //     }
+  //   })();
+  // }, [selected]);
+  
+
   /* close detail on Esc ------------------------------------------ */
-  const escClose = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape") setSelected(null);
-  }, []);
-  useEffect(() => {
-    window.addEventListener("keydown", escClose);
-    return () => window.removeEventListener("keydown", escClose);
-  }, [escClose]);
+  const escClose = useCallback((e: KeyboardEvent) => { if (e.key === "Escape") setSelected(null); }, []);
+  useEffect(() => { window.addEventListener("keydown", escClose); return () => window.removeEventListener("keydown", escClose); }, [escClose]);
+
+  /* ── handler for dropdown ---------------------- */
+  const handleFundChange = (v:string) => {
+    setSelectedFund(Number(v));
+    // setPage(1);
+    // setSelected(null);
+  };
 
   /* -------------------------------------------------------------- */
   const TableCard = (
@@ -282,6 +383,20 @@ export default function InvestorsPage() {
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">Investors</h1>
+
+      {/* FUND PICKER ------------------------------------------------ */}
+      <Select value={String(selectedFund ?? "")} onValueChange={handleFundChange}>
+        <SelectTrigger className="w-96">
+          <SelectValue placeholder="Choose a fund" />
+        </SelectTrigger>
+        <SelectContent>
+          {funds.map(f => (
+            <SelectItem key={f.fund_id} value={String(f.fund_id)}>
+              {f.fund_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {/* ---------- MAIN LAYOUT ---------- */}
       {selected ? (

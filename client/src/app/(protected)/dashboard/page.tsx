@@ -30,6 +30,16 @@ const uiMonthToIso = (label: string) => {
   const month = new Date(`${name} 1, ${year}`).getMonth() + 1; // 0-based
   return `${year}-${month.toString().padStart(2, "0")}`;
 };
+
+const monthYearLabel = (iso: string) => {
+  const d = new Date(iso);                       // iso = "2025-01-31"
+  return d.toLocaleString("en-US", {
+    month: "long",
+    year:  "numeric",
+    timeZone: "UTC",
+  });                                            // ⇒ "January 2025"
+};
+
 /* ─── Helper styles ─────────────────────────────────── */
 const chartBox = "relative w-full h-[300px]";
 
@@ -47,8 +57,14 @@ type UnsettledRow = {
   snapshot_date: string;  // e.g. "2025-01-28T00:00:00.000Z"
 };
 
+type Fund = { fund_id: number; fund_name: string };
+
 /* ─── Component ─────────────────────────────────────── */
 export default function DashboardPage() {
+  /* get fund names */
+  const [funds,  setFunds]       = useState<Fund[]>([]);
+  const [fundId, setFundId]      = useState<number | null>(null);
+
   /* Net-cash KPI & history */
   const [netCashHistory , setNetCashHistory] = useState< { month_start:string; closing_avail:string }[] >([]);
   const [monthOptions   , setMonthOptions  ] = useState<string[]>([]);
@@ -68,6 +84,20 @@ export default function DashboardPage() {
 
   /* NAV vs. Dividend bar-chart */
   const [navRows        , setNavRows      ] = useState< { period:string; nav:string; dividend:string }[] >([]);
+
+  /* fetch funds once ------------------------------------------------ */
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/funds`, { credentials: "include" });
+        const j: Fund[] = await r.json();
+        setFunds(j);
+        if (!fundId && j.length) setFundId(j[0].fund_id);      // default pick
+      } catch (e) {
+        console.error("fund list fetch:", e);
+      }
+    })();
+  }, []);
   /* -------- fetch both endpoints once ----------------------- */
   useEffect(() => {
     (async () => {
@@ -287,23 +317,38 @@ export default function DashboardPage() {
             </SelectContent>
           </Select> */}
 
-          <Select defaultValue="all">
+          {/* <Select defaultValue="all">
             <SelectTrigger className="w-48">
               <Filter className="w-4 h-4 mr-2" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Annum Asia New Dividend Income Fund</SelectItem>
-              {/* <SelectItem value="equity">Equity Fund</SelectItem>
+              <SelectItem value="equity">Equity Fund</SelectItem>
               <SelectItem value="bond">Bond Fund</SelectItem>
-              <SelectItem value="hybrid">Hybrid Fund</SelectItem> */}
+              <SelectItem value="hybrid">Hybrid Fund</SelectItem>
             </SelectContent>
-          </Select>
+          </Select> */}
+           {/* fund picker -------------------------------------------------- */}
+            <Select value={fundId !== null ? String(fundId) : ""} onValueChange={(v) => setFundId(Number(v))} >
+              <SelectTrigger className="w-64">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Choose a fund" />
+              </SelectTrigger>
+
+              <SelectContent>
+                {funds.map((f) => (
+                  <SelectItem key={f.fund_id} value={String(f.fund_id)}>
+                    {f.fund_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
         </div>
-        <Button variant="outline" size="sm">
+        {/* <Button variant="outline" size="sm">
           <Download className="w-4 h-4 mr-2" />
           Export Report
-        </Button>
+        </Button> */}
       </div>
 
       {/* KPI cards */}
@@ -332,9 +377,9 @@ export default function DashboardPage() {
                           <SelectValue placeholder="Month" />
                         </SelectTrigger>
                         <SelectContent onScroll={handleAumScroll} className="max-h-60 overflow-y-auto">
-                          {aumOptions.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
+                          {aumOptions.map((iso) => (
+                            <SelectItem key={iso} value={iso}>
+                              {monthYearLabel(iso)}
                             </SelectItem>
                           ))}
                         </SelectContent>

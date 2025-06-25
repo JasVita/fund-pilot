@@ -11,6 +11,7 @@ const { pool } = require("../config/db");
 exports.portfolioOverview = async (req, res) => {
   const LIMIT = 20;
   const page  = Math.max(1, parseInt(req.query.page ?? "1", 10));
+  const fundId = req.query.fund_id ? Number(req.query.fund_id) : null;
   const lo    = (page - 1) * LIMIT + 1;
   const hi    = page * LIMIT;
 
@@ -18,16 +19,19 @@ exports.portfolioOverview = async (req, res) => {
     /* ---------- pageCount (same as before) ------------------------- */
     const { rows: [{ total }] } = await pool.query(`
       SELECT COUNT(*)::int AS total
-      FROM   get_latest_snapshot_detail();
-    `);
+      FROM   get_latest_snapshot_detail()
+      ${fundId !== null ? "WHERE fund_id = $1" : ""};
+    `, fundId !== null ? [fundId] : []);
     const pageCount = Math.max(1, Math.ceil(total / LIMIT));
 
     /* ---------- page slice ---------------------------------------- */
-    const { rows } = await pool.query(`
+    // const { rows } = await pool.query(`
+    const sliceSql = `
       WITH
         latest AS (
           SELECT *
           FROM   get_latest_snapshot_detail()
+          ${fundId !== null ? "WHERE fund_id = $" + (fundId !== null ? 3 : "") : ""}
         ),
         redeem AS (
           SELECT
@@ -65,7 +69,10 @@ exports.portfolioOverview = async (req, res) => {
       FROM   ranked
       WHERE  row_num BETWEEN $1 AND $2
       ORDER  BY row_num;
-    `, [lo, hi]);
+    `;
+    const params = [lo, hi];
+    if (fundId !== null) params.push(fundId);
+    const { rows } = await pool.query(sliceSql, params);
 
     res.json({ page, pageCount, rows });
   } catch (err) {
@@ -78,9 +85,11 @@ exports.investorHoldings = async (req, res) => {
   const raw = req.query.investor ?? "";
   const investor = raw.trim();          // remove accidental spaces
 
-  if (!investor) {
+  // if (!investor) { return res.status(400).json({ error: "Query param ?investor= is required" });}
+  const fundId = req.query.fund_id ? Number(req.query.fund_id) : null; 
+  if (!investor)
     return res.status(400).json({ error: "Query param ?investor= is required" });
-  }
+
 
   try {
     /* ---------- 1. latest fund / product name -------------------- */
@@ -89,6 +98,7 @@ exports.investorHoldings = async (req, res) => {
     } = await pool.query(
       `SELECT fund_name
        FROM   holdings_snapshot
+       
        ORDER  BY snapshot_date DESC
        LIMIT  1`
     );
