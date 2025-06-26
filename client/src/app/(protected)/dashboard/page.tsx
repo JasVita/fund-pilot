@@ -100,88 +100,81 @@ export default function DashboardPage() {
   }, []);
   /* -------- fetch both endpoints once ----------------------- */
   useEffect(() => {
+    if (fundId === null) return;
+    const qp = `fund_id=${fundId}`;  
+
     (async () => {
       try {
         const [ncRes, urRes, ndRes, aumRes] = await Promise.all([
-          fetch(`${API_BASE}/dashboard/net-cash`, { credentials: "include" }),
-          fetch(`${API_BASE}/dashboard/unsettled-redemption`, { credentials: "include" }),
-          fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`, { credentials: "include" }),
-          fetch(`${API_BASE}/dashboard/aum`, { credentials:"include" }),
+          fetch(`${API_BASE}/dashboard/net-cash?${qp}`, { credentials: "include" }),
+          fetch(`${API_BASE}/dashboard/unsettled-redemption?${qp}`, { credentials: "include" }),
+          fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div?${qp}`, { credentials: "include" }),
+          fetch(`${API_BASE}/dashboard/aum?${qp}`, { credentials:"include" }),
 
         ]);
-
-        /* --- Net-cash --------------------------------------- */
+        console.log("UR urRes:", urRes);
+        /* --- Net-cash ---------------------------------------- */
         const ncJson = await ncRes.json();
         if (Array.isArray(ncJson.history)) {
           setNetCashHistory(ncJson.history);
-
-          /* --- build the month list once we know the history --- */
-          const opts = ncJson.history
-            .map((r: any) => {
-              const d = new Date(r.month_start);
-              return d.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }); 
-            });
+          const opts = ncJson.history.map((r:any) =>
+            new Date(r.month_start).toLocaleString("en-US",
+              { month:"long", year:"numeric", timeZone:"UTC" })
+          );
           setMonthOptions(opts);
-          if (!monthFilter && opts[0]) setMonthFilter(opts[0]);  // pick the most-recent if nothing selected yet
+          if (!monthFilter && opts[0]) setMonthFilter(opts[0]);
         }
 
-        /* --- Unsettled redemptions -------------------------- */
+        /* --- Unsettled redemptions --------------------------- */
         const urJson = await urRes.json();
+        console.log("UR urJson:", urJson);
         if (Array.isArray(urJson)) {
           setRedempRows(urJson);
-          setRedempSum(
-            urJson.reduce((acc: number, r: any) => acc + Math.abs(+r.nav_delta), 0)
-          );
+          setRedempSum(urJson.reduce((acc:number,r:any)=>acc+Math.abs(+r.nav_delta),0));
         }
 
         /* --- NAV + Dividend rows ------------------------------ */
         // setNavRows(await ndRes.json());
-        const ndJson = await ndRes.json();
-        if (Array.isArray(ndJson)) {
-          setNavRows(ndJson); 
-        }
+        // const ndJson = await ndRes.json();
 
-        const aumJson = await aumRes.json();                              // [{snapshot,nav_total}, …]
+        // if (Array.isArray(ndJson)) {
+        //   setNavRows(ndJson); 
+        // }
+
+        /* --- NAV vs Div -------------------------------------- */
+        setNavRows(await ndRes.json());
+
+        /* --- AUM rows ---------------------------------------- */
+        const aumJson = await aumRes.json();
         if (Array.isArray(aumJson) && aumJson.length) {
           setAumRows(aumJson);
-          setAumOptions(Array.from(new Set(aumJson.map(r => r.snapshot))));
-          setAumSelected(aumJson[0].snapshot);              // newest
+          setAumOptions([...new Set(aumJson.map(r=>r.snapshot))]);
+          setAumSelected(aumJson[0].snapshot);
           setAumValue(usdCompact(+aumJson[0].nav_total));
-          setAumNextAfter(aumJson.at(-1)!.snapshot);        // last row’s date → next page cursor
+          setAumNextAfter(aumJson.at(-1)!.snapshot);
         }
-      } catch (err) {
-        console.error("Dashboard fetch error:", err);
-      }
+      } catch (err) { console.error("Dashboard fetch error:", err); }
     })();
-  }, []);
+  }, [fundId]);  
 
-  useEffect(() => {
-    if (!monthFilter && monthOptions.length) {
-      setMonthFilter(monthOptions[0]);        // newest = first in list
-    }
-  }, [monthOptions, monthFilter]);
+  useEffect(() => { if (!monthFilter && monthOptions.length) setMonthFilter(monthOptions[0]); }, [monthOptions, monthFilter]);
 
   /* -------- whenever the month drop-down changes ------------ */
   useEffect(() => {
+    if (!monthFilter || fundId === null) return;
+    const iso = uiMonthToIso(monthFilter);
+    const qp  = `month=${iso}&fund_id=${fundId}`;
+
     (async () => {
-      const iso = uiMonthToIso(monthFilter);                 // 2025-06
       try {
-        const res   = await fetch(
-          `${API_BASE}/dashboard/net-cash?month=${iso}`,
-          { credentials: "include" }
-        );
-        const json  = await res.json();                      // { latest, history:[1 row] }
-        const row   = json.history?.[0];
+        // const res  = await fetch(`${API_BASE}/dashboard/net-cash?month=${iso}&fund_id=${qp}`, { credentials:"include" });
+        const res  = await fetch(`${API_BASE}/dashboard/net-cash?${qp}`, { credentials:"include" });
+        const json = await res.json();
+        const row  = json.history?.[0];
         setMonthValue(row ? usdCompact(+row.closing_avail) : "—");
-
-        } catch (e) {
-          console.error("month fetch", e);
-          setMonthValue("—");
-        }
-
-
+      } catch (e) { console.error("month fetch", e); setMonthValue("—"); }
     })();
-  }, [monthFilter]);
+  }, [monthFilter, fundId]);  
 
   useEffect(() => {
 
@@ -189,41 +182,27 @@ export default function DashboardPage() {
     const row = aumRows.find(r => r.snapshot === aumSelected);
     setAumValue(row ? usdCompact(+row.nav_total) : "—");
   }, [aumSelected, aumRows]);
-  /* load more AUM rows when user scrolls to bottom of the dropdown */
+  
+  /* ─────────── "load more" AUM – add fundId param ─────────── */
   const handleAumScroll = async (e: React.UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
 
     /*  stop if the user hasn’t reached ~100 px from the bottom  */
-    if (el.scrollTop + el.clientHeight < el.scrollHeight - 100) return;
+    if (e.currentTarget.scrollTop + e.currentTarget.clientHeight < e.currentTarget.scrollHeight - 100) return;
+    if (!aumNextAfter || fundId === null) return;
 
-    /*  no more pages to fetch  */
-    if (!aumNextAfter) return;
-
+    const qp = `after=${aumNextAfter}&limit=30&fund_id=${fundId}`;
     try {
-      const res  = await fetch(
-        `${API_BASE}/dashboard/aum?after=${aumNextAfter}&limit=30`,
-        { credentials: "include" }
-      );
-      const more = await res.json();               // [{ snapshot, nav_total }, …]
+      const res  = await fetch(`${API_BASE}/dashboard/aum?${qp}`, { credentials:"include" });
+      const more = await res.json();             
 
       if (Array.isArray(more) && more.length) {
-        /* ---------- 1) rows ---------------------------------- */
         setAumRows(prev => [...prev, ...more]);
-
-        /* ---------- 2) options (dedup to avoid duplicate keys) */
-        setAumOptions(prev => {
-          const merged = [...prev, ...more.map(r => r.snapshot)];
-          return Array.from(new Set(merged));       // unique snapshot dates
-        });
-
-        /* ---------- 3) next cursor --------------------------- */
-        setAumNextAfter(more.at(-1)!.snapshot);     // newest “old” date
+        setAumOptions(prev => [...new Set([...prev, ...more.map(r=>r.snapshot)])]);
+        setAumNextAfter(more.at(-1)!.snapshot);
       } else {
-        setAumNextAfter(null);                      // reached the end
+        setAumNextAfter(null);
       }
-    } catch (err) {
-      console.error("load more AUM:", err);
-    }
+    } catch (err) { console.error("load more AUM:", err); }
   };
 
   /* -------- derived metrics --------------------------------- */
