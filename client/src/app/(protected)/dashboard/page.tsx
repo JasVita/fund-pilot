@@ -112,7 +112,6 @@ export default function DashboardPage() {
           fetch(`${API_BASE}/dashboard/aum?${qp}`, { credentials:"include" }),
 
         ]);
-        console.log("UR urRes:", urRes);
         /* --- Net-cash ---------------------------------------- */
         const ncJson = await ncRes.json();
         if (Array.isArray(ncJson.history)) {

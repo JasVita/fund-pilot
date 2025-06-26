@@ -17,35 +17,32 @@ exports.portfolioOverview = async (req, res) => {
 
   try {
     /* ---------- pageCount (same as before) ------------------------- */
-    const { rows: [{ total }] } = await pool.query(`
-      SELECT COUNT(*)::int AS total
-      FROM   get_latest_snapshot_detail()
-      ${fundId !== null ? "WHERE fund_id = $1" : ""};
-    `, fundId !== null ? [fundId] : []);
+    const { rows: [{ total }] } = await pool.query(
+      `SELECT COUNT(*)::int AS total
+         FROM get_latest_snapshot_detail_fund($1);`,
+      [fundId]     
+    );
     const pageCount = Math.max(1, Math.ceil(total / LIMIT));
 
-    /* ---------- page slice ---------------------------------------- */
-    // const { rows } = await pool.query(`
+    /* ---------- paged slice ------------------------------------- */
     const sliceSql = `
       WITH
         latest AS (
           SELECT *
-          FROM   get_latest_snapshot_detail()
-          ${fundId !== null ? "WHERE fund_id = $" + (fundId !== null ? 3 : "") : ""}
+          FROM   get_latest_snapshot_detail_fund($3)   -- fund filter
         ),
         redeem AS (
-          SELECT
-            investor_name,
-            ABS(nav_delta)::numeric AS unpaid_redeem
-          FROM   get_unsettled_redeem_6m()
+          SELECT investor_name,
+                 ABS(nav_delta)::numeric AS unpaid_redeem
+          FROM   get_unsettled_redeem_6m_fund($3)      -- same filter
         ),
         combined AS (
           SELECT
-            l.investor_name                  AS investor,
+            l.investor_name AS investor,
             l.class,
             l.number_held,
-            l.nav_value                      AS current_nav,
-            r.unpaid_redeem,                 -- NULL if none
+            l.nav_value     AS current_nav,
+            r.unpaid_redeem,
             l.status
           FROM   latest l
           LEFT   JOIN redeem r USING (investor_name)
@@ -54,9 +51,9 @@ exports.portfolioOverview = async (req, res) => {
           SELECT *,
                  ROW_NUMBER() OVER (
                    ORDER BY
-                     (status = 'active')         DESC,  -- 1️⃣ actives
-                     (unpaid_redeem IS NOT NULL) DESC,  -- 2️⃣ inactive w/ redeem
-                     investor                             -- 3️⃣ alphabetical
+                     (status = 'active')         DESC,
+                     (unpaid_redeem IS NOT NULL) DESC,
+                     investor
                  ) AS row_num
           FROM combined
         )
@@ -68,119 +65,100 @@ exports.portfolioOverview = async (req, res) => {
              status
       FROM   ranked
       WHERE  row_num BETWEEN $1 AND $2
-      ORDER  BY row_num;
-    `;
-    const params = [lo, hi];
-    if (fundId !== null) params.push(fundId);
-    const { rows } = await pool.query(sliceSql, params);
+      ORDER  BY row_num;`;
 
+    const { rows } = await pool.query(sliceSql, [lo, hi, fundId]);
     res.json({ page, pageCount, rows });
+
   } catch (err) {
     console.error("portfolioOverview:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
+/* ------------------------------------------------------------------ *
+ * GET /investors/holdings?investor=A&fund_id=K
+ * ------------------------------------------------------------------ */
 exports.investorHoldings = async (req, res) => {
-  const raw = req.query.investor ?? "";
-  const investor = raw.trim();          // remove accidental spaces
+  const investor = (req.query.investor ?? "").trim();
+  const fundId   = req.query.fund_id ? Number(req.query.fund_id) : null;
 
-  // if (!investor) { return res.status(400).json({ error: "Query param ?investor= is required" });}
-  const fundId = req.query.fund_id ? Number(req.query.fund_id) : null; 
   if (!investor)
-    return res.status(400).json({ error: "Query param ?investor= is required" });
-
+    return res.status(400).json({ error: "?investor= is required" });
 
   try {
-    /* ---------- 1. latest fund / product name -------------------- */
-    const {
-      rows: [{ fund_name }],
-    } = await pool.query(
+    /* ---- 1. canonical fund name (so the drawer header is right) */
+    const { rows: [{ fund_name }] } = await pool.query(
       `SELECT fund_name
-       FROM   holdings_snapshot
-       
-       ORDER  BY snapshot_date DESC
-       LIMIT  1`
+         FROM holdings_snapshot hs
+         LEFT JOIN v_fund_lookup vl ON vl.name = hs.fund_name
+        WHERE vl.fund_id = COALESCE($1::int, vl.fund_id)  
+     ORDER BY hs.snapshot_date DESC, hs.id DESC
+        LIMIT 1;`,
+      [fundId]
     );
 
-    /* ---------- 2. investor activity ----------------------------- */
+    /* ---- 2. activity wrapper that honours the fund filter ----- */
+    const q = `SELECT *
+                 FROM get_investor_activity_fund($1, 0.3, $2);`;
     const {
       rows: [{
-        inc_dates, inc_navs,         /* arrays */
-        dec_dates, dec_navs,         /* arrays */
+        inc_dates, inc_navs,
+        dec_dates, dec_navs,
         last_date, last_nav, div_sum
       }],
-    } = await pool.query(`SELECT * FROM get_investor_activity($1)`, [investor]);
+    } = await pool.query(q, [investor, fundId]);
 
-    /** helper: PG array → JS array */
-    const pgArr = (v) =>
-      Array.isArray(v) ? v : v ? v.slice(1, -1).split(",") : [];
+    /* ---- helpers --------------------------------------------- */
+    const pgArr = v =>
+      Array.isArray(v) ? v
+      : v == null       ? []
+      : v.slice(1, -1).split(",");
 
-    // /* ---------- helpers to deserialize Postgres arrays ----------- */
-    // const pgArr = (v) => {
-    //   if (Array.isArray(v)) return v;        // already parsed by pg
-    //   if (v == null) return [];
-    //   return v
-    //     .slice(1, -1)                        // "{…}" → "…"
-    //     .split(",")
-    //     .filter(Boolean);
-    // };
-
-    /* ---------- arrays ------------------------------------------ */
-    const incDateArr = pgArr(inc_dates);          // 購入日期
+    const incDateArr = pgArr(inc_dates);
     const incNavArr  = pgArr(inc_navs).map(Number);
-
     const decDateArr = pgArr(dec_dates);
-    const decNavArr  = pgArr(dec_navs).map((n) => Math.abs(Number(n)));
+    const decNavArr  = pgArr(dec_navs).map(n => Math.abs(Number(n)));
 
-    /* ---- build 市值 lists per new rule ------------------------- */
     let mvDates = [...decDateArr];
     let mvVals  = [...decNavArr];
-
     if (Number(last_nav) !== 0) {
       mvDates.push(String(last_date));
       mvVals.push(Math.abs(Number(last_nav)));
     }
 
-    /* ---- other totals ------------------------------------------ */
-    const subscribedSum  = incNavArr.reduce((a, b) => a + b, 0);
-    const marketValueSum = mvVals.reduce((a, b) => a + b, 0);
-    const totalAfterInt  = marketValueSum + Number(div_sum);
+    const subscribed = incNavArr.reduce((a,b) => a+b, 0);
+    const mktValue   = mvVals.reduce((a,b) => a+b, 0);
+    const totalAfter = mktValue + Number(div_sum);
+    const pnlPct     = subscribed === 0 ? null
+                     : ((totalAfter - subscribed) / subscribed) * 100;
 
-    const pnlPct =
-      subscribedSum === 0
-        ? null
-        : ((totalAfterInt - subscribedSum) / subscribedSum) * 100;
-
-    /* ---- response ---------------------------------------------- */
     res.json({
       investor,
-      rows: [
-        {
-          name: fund_name,
-          sub_date: incDateArr.join("\n"),            // 認購時間
-          data_cutoff: mvDates.join("\n"),            // 數據截止
-          subscribed: incNavArr.join("\n"),           // 認購金額
-          market_value: mvVals.join("\n"),            // 市值 (list)
-          total_after_int: totalAfterInt,             // 含息後總額
-          pnl_pct: pnlPct !== null ? pnlPct.toFixed(2) : "NA",
-        },
-      ],
+      rows: [{
+        name            : fund_name,
+        sub_date        : incDateArr.join("\n"),
+        data_cutoff     : mvDates.join("\n"),
+        subscribed      : incNavArr.join("\n"),
+        market_value    : mvVals.join("\n"),
+        total_after_int : totalAfter,
+        pnl_pct         : pnlPct != null ? pnlPct.toFixed(2) : "NA",
+      }],
     });
+
   } catch (err) {
     console.error("investorHoldings:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
+/* unchanged: listInvestors() */
 exports.listInvestors = async (req, res) => {
   const cid = req.auth.role === "super"
-            ? req.query.company_id || req.auth.company_id // allow super to pick
+            ? req.query.company_id || req.auth.company_id
             : req.auth.company_id;
-
   const { rows } = await pool.query(
-    "SELECT * FROM investors WHERE company_id = $1",
-    [cid]
+    "SELECT * FROM investors WHERE company_id = $1;", [cid]
   );
   res.json(rows);
 };
