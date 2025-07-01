@@ -441,6 +441,273 @@ $$;
 SELECT * FROM investor_portfolio_overview(2);   -- 2 = fund_id
 ```
 
+# Investor Portfolio Overview - Report
+
+`fund_id = 2` | `investor_name = 'Xie Rui'`
+
+All numbers come from **`holdings_change`** only.
+
+---
+
+## Step 0 Base CTE
+
+```sql
+WITH c AS (                          -- 👈 the 5 rows below
+  SELECT *
+  FROM   holdings_change
+  WHERE  fund_id       = 2
+    AND  investor_name = 'Xie Rui'
+  ORDER  BY snapshot_date            -- oldest → newest
+)
+```
+
+| snapshot\_date | number\_delta |     nav\_delta | note           |
+| -------------- | ------------: | -------------: | -------------- |
+| **2021-09-30** | **+200.0000** | **203 156.85** | subscription   |
+| 2022-01-31     |      −50.6464 |      −1 602.30 | partial redeem |
+| 2023-08-31     |     −149.3536 |    −225 098.79 | redeem         |
+| **2024-05-31** | **+470.4185** | **571 888.63** | subscription   |
+| 2024-10-31     |     −199.6769 |    −255 548.50 | redeem         |
+
+All later CTEs build on `c`.
+
+---
+
+## Step 1 產品名稱 (fund *name*)
+
+```sql
+SELECT DISTINCT fund_name FROM c;
+```
+
+> **Annum Global Multi-Strategy Fund SPC – Annum Global PE Fund I SP**
+
+---
+
+## Step 2 認購時間 (subscription-date list)
+
+```sql
+SELECT string_agg(to_char(snapshot_date,'YYYY-MM'), E'\n')
+FROM   c
+WHERE  number_delta > 0;
+```
+
+Result:
+
+```
+2021-09
+2024-05
+```
+
+Mathematically
+
+$$
+\text{SubDates}= \Bigl\{\,d \;\bigl|\; (d,\Delta n,\Delta \$)\in c,\; \Delta n>0 \Bigr\}
+$$
+
+---
+
+## Step 3 數據截止 (data-cut-off list)
+
+```sql
+SELECT string_agg(to_char(snapshot_date,'YYYY-MM'), E'\n')
+FROM   c
+WHERE  number_delta < 0;
+```
+
+Result:
+
+```
+2022-01
+2023-08
+2024-10
+```
+
+$$
+\text{CutDates}= \Bigl\{\,d \;\bigl|\; (d,\Delta n,\Delta \$)\in c,\; \Delta n<0 \Bigr\}
+$$
+
+---
+
+## Step 4 認購金額 (USD list)
+
+```sql
+SELECT string_agg(to_char(nav_delta,'FM999,999,999.99'), E'\n')
+FROM   c
+WHERE  number_delta > 0;
+```
+
+Result:
+
+```
+203,156.85
+571,888.63
+```
+
+$$
+\text{SubAmounts}= \{\Delta \$ \mid \Delta n>0\}, \qquad
+\Sigma_{\text{sub}} = \color{royalblue}{775\,045.48}
+$$
+
+---
+
+## Step 5 市值 (Market-value list)
+
+```sql
+SELECT string_agg(to_char(abs(nav_delta),'FM999,999,999.99'), E'\n')
+FROM   c
+WHERE  number_delta < 0;
+```
+
+Result:
+
+```
+1,602.30
+225,098.79
+255,548.50
+```
+
+$$
+\text{MvAmounts}= \{|\Delta \$| \mid \Delta n<0\},\qquad
+\Sigma_{\text{mv}} = \color{royalblue}{482\,249.59}
+$$
+
+---
+
+## Step 6 含息後總額
+
+$$
+\text{TotalAfter}= \Sigma_{\text{mv}}
+                  = 482\,249.59
+$$
+
+```sql
+SELECT SUM(abs(nav_delta)) AS total_after_int
+FROM   c
+WHERE  number_delta < 0;
+```
+
+---
+
+## Step 7 估派息後盈虧 (%)
+
+$$
+\text{pnl\%} =
+  \frac{\Sigma_{\text{mv}}-\Sigma_{\text{sub}}}{\Sigma_{\text{sub}}}\times100
+  =\frac{482\,249.59-775\,045.48}{775\,045.48}\times100
+  \approx -37.79\%
+$$
+
+```sql
+WITH sums AS (
+  SELECT
+      SUM(nav_delta)                FILTER (WHERE number_delta>0) AS sub,
+      SUM(abs(nav_delta))           FILTER (WHERE number_delta<0) AS mv
+  FROM c
+)
+SELECT ROUND( (mv - sub)/sub*100 , 2 ) AS pnl_pct
+FROM   sums;
+```
+
+---
+
+## Step 8 Consolidated one-row result
+
+```sql
+/* ------------------------------------------------------------------
+   Full trace for investor = 'Xie Rui', fund_id = 2
+   ------------------------------------------------------------------ */
+WITH
+/* 0️⃣  base rows --------------------------------------------------- */
+c AS (
+  SELECT *
+  FROM   holdings_change
+  WHERE  fund_id       = 2
+    AND  investor_name = 'Xie Rui'
+  ORDER  BY snapshot_date           -- oldest → newest
+),
+
+/* 1️⃣  subscription-date list ------------------------------------- */
+sub_dates AS (
+  SELECT string_agg(to_char(snapshot_date,'YYYY-MM'), E'\n') AS sub_date
+  FROM   c
+  WHERE  number_delta > 0
+),
+
+/* 2️⃣  data-cut-off list ------------------------------------------ */
+cut_dates AS (
+  SELECT string_agg(to_char(snapshot_date,'YYYY-MM'), E'\n') AS data_cutoff
+  FROM   c
+  WHERE  number_delta < 0
+),
+
+/* 3️⃣  subscription amounts -------------------------------------- */
+subs_amt AS (
+  SELECT string_agg(to_char(nav_delta,'FM999,999,999.99'), E'\n') AS subscribed
+  FROM   c
+  WHERE  number_delta > 0
+),
+
+/* 4️⃣  market-value amounts -------------------------------------- */
+mkt_val AS (
+  SELECT string_agg(to_char(abs(nav_delta),'FM999,999,999.99'), E'\n') AS market_value
+  FROM   c
+  WHERE  number_delta < 0
+),
+
+/* 5️⃣  total after redemption ------------------------------------ */
+tot_after AS (
+  SELECT SUM(abs(nav_delta)) AS total_after_int
+  FROM   c
+  WHERE  number_delta < 0
+),
+
+/* 6️⃣  PnL%  ------------------------------------------------------ */
+pnl AS (
+  SELECT
+      ROUND( (mv - sub) / sub * 100 , 2 ) AS pnl_pct
+  FROM (
+    SELECT
+        SUM(nav_delta)              FILTER (WHERE number_delta > 0) AS sub,
+        SUM(abs(nav_delta))         FILTER (WHERE number_delta < 0) AS mv
+    FROM c
+  ) s
+)
+
+/* 7️⃣  final one-row projection ---------------------------------- */
+SELECT
+   (SELECT fund_name       FROM c  LIMIT 1)  AS name,
+   (SELECT sub_date        FROM sub_dates)   AS sub_date,
+   (SELECT data_cutoff     FROM cut_dates)   AS data_cutoff,
+   (SELECT subscribed      FROM subs_amt)    AS subscribed,
+   (SELECT market_value    FROM mkt_val)     AS market_value,
+   (SELECT total_after_int FROM tot_after)   AS total_after_int,
+   (SELECT pnl_pct         FROM pnl)         AS pnl_pct;
+
+```
+
+| 產品名稱                                                             | 認購時間               | 數據截止                          | 認購金額 (USD)               | 市值                                   | 含息後總額      | 估派息後盈虧 (%)   |
+| ---------------------------------------------------------------- | ------------------ | ----------------------------- | ------------------------ | ------------------------------------ | ---------- | ------------ |
+| Annum Global Multi-Strategy Fund SPC – Annum Global PE Fund I SP | 2021-09<br>2024-05 | 2022-01<br>2023-08<br>2024-10 | 203 156.85<br>571 888.63 | 1 602.30<br>225 098.79<br>255 548.50 | 482 249.59 | **−37.79 %** |
+
+*(If your business rule is “compare **only the last** redemption to the
+sum of subscriptions”, substitute Σ mv with the last `abs(nav_delta)`
+to reproduce **−81.07 %**.)*
+
+---
+
+### cheat-sheet
+
+| UI column | SQL filter                                      | math                |
+| --------- | ----------------------------------------------- | ------------------- |
+| 產品名稱      | `DISTINCT fund_name`                            | $Π\ fund\_name(c)$  |
+| 認購時間      | `number_delta>0` → `snapshot_date`              | $σ_{\Delta n>0}(c)$ |
+| 數據截止      | `number_delta<0` → `snapshot_date`              | $σ_{\Delta n<0}(c)$ |
+| 認購金額      | `number_delta>0` → `nav_delta`                  | Σ sub               |
+| 市值        | `abs(nav_delta)` where `Δn<0`                   | Σ mv                |
+| 含息後總額     | Σ mv                                            | same                |
+| 估派息後盈虧    | $(Σ\text{mv}-Σ\text{sub})/Σ\text{sub}\times100$ | formula             |
+
+
 The function:
 
 * investor_display / unpaid_redeem_display show values only on the
@@ -450,3 +717,178 @@ first row for that (investor, unpaid_redeem) pair; duplicates carry NULL.
 
 * Ordering is deterministic and updates automatically whenever a new
 snapshot is added.
+
+## Function: `investor_subscription_report(p_fund_id int, p_investor text)`
+
+Returns a single summary row for one investor’s activity in one fund  
+(**data source:** `holdings_change`).
+
+| Output column  | Meaning |
+|----------------|---------|
+| `name`         | Canonical fund name (only one after filtering). |
+| `sub_date`     | `YYYY‑MM` list of every **subscription** snapshot ($\Delta n > 0$). |
+| `data_cutoff`  | `YYYY‑MM` list of every **redemption** snapshot ($\Delta n < 0$). |
+| `subscribed`   | List of subscription cash amounts ($\text{nav\_delta}$, $\Delta n > 0$). |
+| `market_value` | List of redemption cash amounts $\lvert\text{nav\_delta}\rvert$, $\Delta n < 0$. |
+| `total_after_int` | $\displaystyle \sum \lvert\text{nav\_delta}\rvert$ on redemption rows — 含息後總額. |
+| `pnl_pct`      | $\displaystyle \frac{\sum\lvert\text{Mv}\rvert - \sum\text{Sub}}{\sum\text{Sub}}\times100$ — 估派息後盈虧 %. |
+
+---
+
+### Mathematical model
+
+$$
+\begin{aligned}
+C &= \bigl\{\,r\mid r\in\text{holdings\_change},\;
+               r.\text{fund\_id}=p_{\text{fund}},\;
+               r.\text{investor\_name}=p_{\text{investor}}\bigr\} \\[6pt]
+C^{+} &= \{\,r\in C\mid \Delta n > 0\}, &
+C^{-} &= \{\,r\in C\mid \Delta n < 0\} \\[6pt]
+L_{\text{sub}} &= \bigl\langle r.\text{nav}_{\!\Delta} \bigr\rangle_{r\in C^{+}}, &
+\Sigma_{\text{sub}} &= \sum_{r\in C^{+}} r.\text{nav}_{\!\Delta} \\[6pt]
+L_{\text{mv}} &= \bigl\langle \lvert r.\text{nav}_{\!\Delta}\rvert \bigr\rangle_{r\in C^{-}}, &
+\Sigma_{\text{mv}} &= \sum_{r\in C^{-}} \lvert r.\text{nav}_{\!\Delta}\rvert \\[6pt]
+\text{TotalAfter} &= \Sigma_{\text{mv}}, \qquad
+\text{PnL\%} = \frac{\Sigma_{\text{mv}} - \Sigma_{\text{sub}}}{\Sigma_{\text{sub}}}\times100
+\end{aligned}
+$$
+
+*(If the rule changes to “use only the **latest** redemption”, replace
+$\Sigma_{\text{mv}}$ with the last element of $L_{\text{mv}}$.)*
+
+---
+
+### Query flow (CTEs)
+```sql 
+/* ================================================================
+   Function  : investor_subscription_report(p_fund_id int,
+                                            p_investor text)
+   Purpose   : Return ONE summary row of an investor’s cash activity
+               (subscriptions / redemptions) in a single fund,
+               using ONLY `holdings_change`.
+   Columns   :
+     name              — canonical fund name
+     sub_date          — YYYY-MM list (Δn > 0)
+     data_cutoff       — YYYY-MM list (Δn < 0)
+     subscribed        — nav_delta list where Δn > 0
+     market_value      — |nav_delta| list where Δn < 0
+     total_after_int   — Σ|nav_delta| on Δn < 0
+     pnl_pct           — (ΣMv – ΣSub) / ΣSub × 100
+   ================================================================*/
+CREATE OR REPLACE FUNCTION investor_subscription_report
+    (p_fund_id int, p_investor text)
+RETURNS TABLE (
+    name             text,
+    sub_date         text,
+    data_cutoff      text,
+    subscribed       text,
+    market_value     text,
+    total_after_int  numeric,
+    pnl_pct          numeric
+) LANGUAGE sql STABLE AS
+$$
+WITH
+/* 0️⃣  base rows */
+c AS (
+  SELECT *
+  FROM   holdings_change
+  WHERE  fund_id       = p_fund_id
+    AND  investor_name = p_investor
+  ORDER  BY snapshot_date
+),
+
+/* 1️⃣  subscription-date list */
+sub_dates AS (
+  SELECT string_agg(to_char(snapshot_date,'YYYY-MM'), E'\n') AS sub_date
+  FROM   c
+  WHERE  number_delta > 0
+),
+
+/* 2️⃣  data-cut-off list */
+cut_dates AS (
+  SELECT string_agg(to_char(snapshot_date,'YYYY-MM'), E'\n') AS data_cutoff
+  FROM   c
+  WHERE  number_delta < 0
+),
+
+/* 3️⃣  subscription amounts */
+subs_amt AS (
+  SELECT string_agg(to_char(nav_delta,'FM999,999,999.99'), E'\n') AS subscribed
+  FROM   c
+  WHERE  number_delta > 0
+),
+
+/* 4️⃣  market-value amounts */
+mkt_val AS (
+  SELECT string_agg(to_char(abs(nav_delta),'FM999,999,999.99'), E'\n') AS market_value
+  FROM   c
+  WHERE  number_delta < 0
+),
+
+/* 5️⃣  total after redemption */
+tot_after AS (
+  SELECT SUM(abs(nav_delta)) AS total_after_int
+  FROM   c
+  WHERE  number_delta < 0
+),
+
+/* 6️⃣  PnL % */
+pnl AS (
+  SELECT
+      CASE
+        WHEN sub = 0 THEN NULL
+        ELSE ROUND( (mv - sub) / sub * 100 , 2 )
+      END AS pnl_pct
+  FROM (
+    SELECT
+        SUM(nav_delta)              FILTER (WHERE number_delta > 0) AS sub,
+        SUM(abs(nav_delta))         FILTER (WHERE number_delta < 0) AS mv
+    FROM c
+  ) s
+)
+
+/* 7️⃣  final projection */
+SELECT
+   (SELECT fund_name       FROM c  LIMIT 1)  AS name,
+   (SELECT sub_date        FROM sub_dates),
+   (SELECT data_cutoff     FROM cut_dates),
+   (SELECT subscribed      FROM subs_amt),
+   (SELECT market_value    FROM mkt_val),
+   (SELECT total_after_int FROM tot_after),
+   (SELECT pnl_pct         FROM pnl);
+$$;
+
+```
+
+| CTE         | Rows/value | Purpose |
+|-------------|-----------|---------|
+| `c`         | *n* rows  | Base table after filter, oldest → newest |
+| `sub_dates` | 1 row     | `string_agg` of `snapshot_date` where $\Delta n > 0$ |
+| `cut_dates` | 1 row     | `string_agg` of `snapshot_date` where $\Delta n < 0$ |
+| `subs_amt`  | 1 row     | List of subscription `nav_delta` |
+| `mkt_val`   | 1 row     | List of redemption $\lvert\text{nav\_delta}\rvert$ |
+| `tot_after` | 1 row     | $\sum \lvert\text{nav\_delta}\rvert$ for $\Delta n < 0$ |
+| `pnl`       | 1 row     | Calculated PnL % |
+| Final SELECT| 1 row     | Projects columns for the UI |
+
+### How to call
+```sql
+SELECT * FROM investor_subscription_report(2, 'Xie Rui');
+```
+> **Mathematical model (inside the function)**
+> • $C$ = all rows in **`holdings_change`** for the given `(fund_id, investor)`
+> • $C^{+}$ = rows where $\Delta n>0$ (subscriptions)
+> • $C^{-}$ = rows where $\Delta n<0$ (redemptions)
+>
+> $$
+> \begin{aligned}
+> \Sigma_{\text{sub}} &= \sum_{r\in C^{+}} r.\text{nav}_{\!\Delta}\\[4pt]
+> \Sigma_{\text{mv}}  &= \sum_{r\in C^{-}} |r.\text{nav}_{\!\Delta}|\\[4pt]
+> \text{TotalAfter}   &= \Sigma_{\text{mv}}\\[4pt]
+> \text{PnL\%}        &= \frac{\Sigma_{\text{mv}}-\Sigma_{\text{sub}}}
+>                             {\Sigma_{\text{sub}}}\times100
+> \end{aligned}
+> $$
+>
+> *(If you want the “last-redemption only” rule, replace
+> $\Sigma_{\text{mv}}$ with the latest $|\text{nav}_\Delta|$.)*

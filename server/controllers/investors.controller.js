@@ -102,79 +102,119 @@ exports.portfolioOverview = async (req, res) => {
 
 /* ------------------------------------------------------------------ *
  * GET /investors/holdings?investor=A&fund_id=K
+ * curl -H "Cookie: fp_jwt=$JWT" "http://localhost:5103/investors/holdings?fund_id=2&investor=Xie%20Rui"
  * ------------------------------------------------------------------ */
 exports.investorHoldings = async (req, res) => {
-  const investor = (req.query.investor ?? "").trim();
+  const investor = (req.query.investor ?? '').trim();
   const fundId   = req.query.fund_id ? Number(req.query.fund_id) : null;
 
   if (!investor)
-    return res.status(400).json({ error: "?investor= is required" });
+    return res.status(400).json({ error: '?investor= is required' });
 
   try {
-    /* ---- 1. canonical fund name (so the drawer header is right) */
-    const { rows: [{ fund_name }] } = await pool.query(
-      `SELECT fund_name
-         FROM holdings_snapshot hs
-         LEFT JOIN v_fund_lookup vl ON vl.name = hs.fund_name
-        WHERE vl.fund_id = COALESCE($1::int, vl.fund_id)  
-     ORDER BY hs.snapshot_date DESC, hs.id DESC
-        LIMIT 1;`,
-      [fundId]
-    );
+    /* single-row summary via new PL/pgSQL function --------------- */
+    const sql = `
+      SELECT *
+        FROM investor_subscription_report($1::int, $2::text);`;
 
-    /* ---- 2. activity wrapper that honours the fund filter ----- */
-    const q = `SELECT *
-                 FROM get_investor_activity_fund($1::text, 0.3, $2::int);`;
-    const {
-      rows: [{
-        inc_dates, inc_navs,
-        dec_dates, dec_navs,
-        last_date, last_nav, div_sum
-      }],
-    } = await pool.query(q, [investor, fundId]);
+    const { rows } = await pool.query(sql, [fundId, investor]);
 
-    /* ---- helpers --------------------------------------------- */
-    const pgArr = v =>
-      Array.isArray(v) ? v
-      : v == null       ? []
-      : v.slice(1, -1).split(",");
+    if (rows.length === 0)
+      return res.status(404).json({ error: 'No data for that investor/fund' });
 
-    const incDateArr = pgArr(inc_dates);
-    const incNavArr  = pgArr(inc_navs).map(Number);
-    const decDateArr = pgArr(dec_dates);
-    const decNavArr  = pgArr(dec_navs).map(n => Math.abs(Number(n)));
-
-    let mvDates = [...decDateArr];
-    let mvVals  = [...decNavArr];
-    if (Number(last_nav) !== 0) {
-      mvDates.push(String(last_date));
-      mvVals.push(Math.abs(Number(last_nav)));
-    }
-
-    const subscribed = incNavArr.reduce((a,b) => a+b, 0);
-    const mktValue   = mvVals.reduce((a,b) => a+b, 0);
-    const totalAfter = mktValue + Number(div_sum);
-    const pnlPct     = subscribed === 0 ? null
-                     : ((totalAfter - subscribed) / subscribed) * 100;
-
+    /* shape it exactly like the old response -------------------- */
+    const [r] = rows;
     res.json({
       investor,
-      rows: [{
-        name            : fund_name,
-        sub_date        : incDateArr.join("\n"),
-        data_cutoff     : mvDates.join("\n"),
-        subscribed      : incNavArr.join("\n"),
-        market_value    : mvVals.join("\n"),
-        total_after_int : totalAfter,
-        pnl_pct         : pnlPct != null ? pnlPct.toFixed(2) : "NA",
-      }],
+      rows: [ {
+        name            : r.name,
+        sub_date        : r.sub_date,
+        data_cutoff     : r.data_cutoff,
+        subscribed      : r.subscribed,
+        market_value    : r.market_value,
+        total_after_int : Number(r.total_after_int),
+        pnl_pct         : r.pnl_pct == null ? 'NA' : r.pnl_pct.toString()
+      } ]
     });
 
   } catch (err) {
-    console.error("investorHoldings:", err);
+    console.error('investorHoldings:', err);
     res.status(500).json({ error: err.message });
   }
 };
+
+// exports.investorHoldings = async (req, res) => {
+//   const investor = (req.query.investor ?? "").trim();
+//   const fundId   = req.query.fund_id ? Number(req.query.fund_id) : null;
+
+//   if (!investor)
+//     return res.status(400).json({ error: "?investor= is required" });
+
+//   try {
+//     /* ---- 1. canonical fund name (so the drawer header is right) */
+//     const { rows: [{ fund_name }] } = await pool.query(
+//       `SELECT fund_name
+//          FROM holdings_snapshot hs
+//          LEFT JOIN v_fund_lookup vl ON vl.name = hs.fund_name
+//         WHERE vl.fund_id = COALESCE($1::int, vl.fund_id)  
+//      ORDER BY hs.snapshot_date DESC, hs.id DESC
+//         LIMIT 1;`,
+//       [fundId]
+//     );
+
+//     /* ---- 2. activity wrapper that honours the fund filter ----- */
+//     const q = `SELECT *
+//                  FROM get_investor_activity_fund($1::text, 0.3, $2::int);`;
+//     const {
+//       rows: [{
+//         inc_dates, inc_navs,
+//         dec_dates, dec_navs,
+//         last_date, last_nav, div_sum
+//       }],
+//     } = await pool.query(q, [investor, fundId]);
+
+//     /* ---- helpers --------------------------------------------- */
+//     const pgArr = v =>
+//       Array.isArray(v) ? v
+//       : v == null       ? []
+//       : v.slice(1, -1).split(",");
+
+//     const incDateArr = pgArr(inc_dates);
+//     const incNavArr  = pgArr(inc_navs).map(Number);
+//     const decDateArr = pgArr(dec_dates);
+//     const decNavArr  = pgArr(dec_navs).map(n => Math.abs(Number(n)));
+
+//     let mvDates = [...decDateArr];
+//     let mvVals  = [...decNavArr];
+//     if (Number(last_nav) !== 0) {
+//       mvDates.push(String(last_date));
+//       mvVals.push(Math.abs(Number(last_nav)));
+//     }
+
+//     const subscribed = incNavArr.reduce((a,b) => a+b, 0);
+//     const mktValue   = mvVals.reduce((a,b) => a+b, 0);
+//     const totalAfter = mktValue + Number(div_sum);
+//     const pnlPct     = subscribed === 0 ? null
+//                      : ((totalAfter - subscribed) / subscribed) * 100;
+
+//     res.json({
+//       investor,
+//       rows: [{
+//         name            : fund_name,
+//         sub_date        : incDateArr.join("\n"),
+//         data_cutoff     : mvDates.join("\n"),
+//         subscribed      : incNavArr.join("\n"),
+//         market_value    : mvVals.join("\n"),
+//         total_after_int : totalAfter,
+//         pnl_pct         : pnlPct != null ? pnlPct.toFixed(2) : "NA",
+//       }],
+//     });
+
+//   } catch (err) {
+//     console.error("investorHoldings:", err);
+//     res.status(500).json({ error: err.message });
+//   }
+// };
 
 /* unchanged: listInvestors() */
 exports.listInvestors = async (req, res) => {

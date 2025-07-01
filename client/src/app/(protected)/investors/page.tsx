@@ -428,10 +428,10 @@ export default function InvestorsPage() {
                         holdings.map((h) => (
                           <TableRow key={h.name}>
                             <TableCell className="whitespace-pre-line break-words" title={h.name}>{h.name}</TableCell>
-                            <TableCell className="truncate" title={fmtDateListStr(h.sub_date)}>{fmtDateList(h.sub_date)}</TableCell>
-                            <TableCell className="truncate" title={fmtDateListStr(h.data_cutoff)}>{fmtDateList(h.data_cutoff)}</TableCell>
-                            <TableCell className="truncate text-right" title={fmtNumListStr(h.subscribed)}>{fmtNumList(h.subscribed)}</TableCell>
-                            <TableCell className="truncate text-right" title={fmtNumListStr(h.market_value)}>{fmtNumList(h.market_value)}</TableCell>
+                            <TableCell className="truncate align-top" title={fmtDateListStr(h.sub_date)}>{fmtDateList(h.sub_date)}</TableCell>
+                            <TableCell className="truncate align-top" title={fmtDateListStr(h.data_cutoff)}>{fmtDateList(h.data_cutoff)}</TableCell>
+                            <TableCell className="truncate text-right align-top" title={fmtNumListStr(h.subscribed)}>{fmtNumList(h.subscribed)}</TableCell>
+                            <TableCell className="truncate text-right align-top" title={fmtNumListStr(h.market_value)}>{fmtNumList(h.market_value)}</TableCell>
                             <TableCell className="truncate text-right" title={fmtNum(h.total_after_int)}>{fmtNum(h.total_after_int)}</TableCell>
                             <TableCell
                               className={`text-right ${
