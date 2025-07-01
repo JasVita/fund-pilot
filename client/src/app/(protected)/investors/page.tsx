@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext, PaginationLink } from "@/components/ui/pagination";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ReportGeneratorDialog from "@/components/pdfGenerator/ReportGeneratorDialog";
 import type { TableRowData } from "@/components/pdfGenerator/InvestmentTable";
 
@@ -73,6 +73,21 @@ const fmtDateListStr = (s: string) =>
     })
     .join("\n");
 
+/* ------------------------------------------------------------------ *
+ * smartPageList()
+ *   – always shows first & last page
+ *   – when current page ≤ 3 ➜  1 2 3 … last
+ *   – when current page ≥ (last-2) ➜ 1 … last-2 last-1 last
+ *   – otherwise               ➜  1 … p-1 p p+1 … last
+ * ------------------------------------------------------------------ */
+function smartPageList(page: number, last: number): (number | "gap")[] {
+  if (last <= 3) return [...Array(last)].map((_, i) => i + 1);
+  if (page <= 2)            return [1, 2, "gap", last];
+  if (page >= last - 1)     return [1, "gap", last - 1, last];
+  /* middle */
+  return [1, "gap", page - 1, page, page + 1, "gap", last];
+}
+
 /* ---- types ------------------------------------------------------- */
 type Investor = {
   investor: string;
@@ -93,63 +108,117 @@ type Holding = {
   pnl_pct: string;        
 };
 
+type Fund = { fund_id:number; fund_name:string };   
+
 /* --------------------------------------------------------------- */
 export default function InvestorsPage() {
+  /* ① fund list + current filter ---------------------------------- */
+  const [funds, setFunds] = useState<Fund[]>([]);
+  const [selectedFund, setSelectedFund] = useState<number | null>(null);
+
+  /* ② table data & UI state --------------------------------------- */
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<Investor[]>([]);
   const [pageCount, setPageCount] = useState(1);
+
+  /* ③ drawer state ------------------------------------------------ */
   const [selected, setSelected] = useState<Investor | null>(null);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [loadingHoldings, setLoadingHoldings] = useState(false);
 
-  /* fetch rows whenever page changes ----------------------------- */
+  /* ------------------------------------------------------------------ *
+   * 1. load the fund list once
+   * ------------------------------------------------------------------ */
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch(`${API_BASE}/investors/portfolio?page=${page}`, { credentials: "include" });
-        const j: { page: number; pageCount: number; rows: Investor[] } =
-          await r.json();
-        setRows(j.rows);
-        setPageCount(j.pageCount);
+        const r = await fetch(`${API_BASE}/funds`, { credentials: "include" });
+        const j: Fund[] = await r.json();
+        setFunds(j);
+        if (j.length && selectedFund == null) setSelectedFund(j[0].fund_id);
       } catch (err) {
-        console.error("investor fetch:", err);
+        console.error("fund list fetch:", err);
       }
     })();
-  }, [page]);
+  }, []);
 
-  /* fetch holdings when investor selected ----------------------------- */
+  /* ------------------------------------------------------------------ *
+   * 2. portfolio rows – refetch on fund|page change
+   * ------------------------------------------------------------------ */
   useEffect(() => {
-    if (!selected) {
-      setHoldings([]);
-      return;
-    }
+    if (selectedFund == null) return;
+
+    (async () => {
+      try {
+        const url = `${API_BASE}/investors/portfolio?fund_id=${selectedFund}&page=${page}`;
+        const r   = await fetch(url, { credentials: "include" });
+        const j   = await r.json() as {
+          page: number; pageCount: number; rows: Investor[];
+        };
+        setRows(j.rows);
+        setPageCount(j.pageCount);
+      } catch (e) { console.error("portfolio fetch:", e); }
+    })();
+  }, [selectedFund, page]);                                        // <- single stable dep
+
+  /* ------------------------------------------------------------------ *
+   * 3. holdings drawer – refetch when investor *or* fund changes
+   * ------------------------------------------------------------------ */
+  useEffect(() => {
+    if (!selected || selectedFund == null) { setHoldings([]); return; }
 
     (async () => {
       try {
         setLoadingHoldings(true);
-        const r = await fetch(
-          `${API_BASE}/investors/holdings?investor=${encodeURIComponent(selected.investor)}`,
-          { credentials: "include" }
-        );
-        const j: { rows: Holding[] } = await r.json();
-        setHoldings(j.rows);
-      } catch (err) {
-        console.error("holdings fetch:", err);
-        setHoldings([]);
+        const url = `${API_BASE}/investors/holdings?fund_id=${selectedFund}` +
+                    `&investor=${encodeURIComponent(selected.investor)}`;
+
+        const r  = await fetch(url, { credentials: "include" });
+        const j: { rows?: Holding[] } = await r.json();
+
+        /*  ⬇ only accept real arrays */
+        setHoldings(Array.isArray(j.rows) ? j.rows : []);
+      } catch (e) {
+        console.error("holdings fetch:", e);
+        setHoldings([]);                       // ← keep it an array on error
       } finally {
         setLoadingHoldings(false);
       }
     })();
-  }, [selected]);
+  }, [selectedFund, selected]);
+
+  /* ------------------------------------------------------------------ *
+   *  UX helpers
+   * ------------------------------------------------------------------ */
+  const changeFund = (v: string) => {
+    setSelectedFund(Number(v));            // 1) switch fund
+    setPage(1);                    // 2) reset paging
+    setSelected(null);             // 3) close any drawer
+  };
 
   /* close detail on Esc ------------------------------------------ */
-  const escClose = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape") setSelected(null);
-  }, []);
-  useEffect(() => {
-    window.addEventListener("keydown", escClose);
-    return () => window.removeEventListener("keydown", escClose);
-  }, [escClose]);
+  const escClose = useCallback((e: KeyboardEvent) => { if (e.key === "Escape") setSelected(null); }, []);
+  useEffect(() => { window.addEventListener("keydown", escClose); return () => window.removeEventListener("keydown", escClose); }, [escClose]);
+
+  /* ------------------------------------------------------------------ *
+   * 4. JSX
+   * ------------------------------------------------------------------ */
+  /* -- FUND PICKER -------------------------------------------------- */
+  const FundPicker = (
+    <Select value={selectedFund != null ? String(selectedFund) : ""}
+            onValueChange={changeFund}>
+      <SelectTrigger className="w-96">
+        <SelectValue placeholder="Choose a fund" />
+      </SelectTrigger>
+      <SelectContent>
+        {funds.map(f => (
+          <SelectItem key={f.fund_id} value={String(f.fund_id)}>
+            {f.fund_name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 
   /* -------------------------------------------------------------- */
   const TableCard = (
@@ -232,34 +301,48 @@ export default function InvestorsPage() {
         <div className="mt-4">
           <Pagination>
             <PaginationContent>
+
+              {/* ◄ Prev */}
               <PaginationItem>
                 <PaginationPrevious
                   href="#"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
                   aria-disabled={page === 1}
                 />
               </PaginationItem>
-              {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
-                <PaginationItem key={n}>
-                  <PaginationLink
-                    href="#"
-                    isActive={n === page}
-                    onClick={() => setPage(n)}
-                  >
-                    {n}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
+
+              {/* numbered links / gaps */}
+              {smartPageList(page, pageCount).map((n, i) =>
+                n === "gap" ? (
+                  <PaginationItem key={`gap-${i}`}>
+                    <span className="px-2 select-none">…</span>
+                  </PaginationItem>
+                ) : (
+                  <PaginationItem key={n}>
+                    <PaginationLink
+                      href="#"
+                      isActive={n === page}
+                      onClick={() => setPage(n)}
+                    >
+                      {n}
+                    </PaginationLink>
+                  </PaginationItem>
+                )
+              )}
+
+              {/* Next ► */}
               <PaginationItem>
                 <PaginationNext
                   href="#"
-                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  onClick={() => setPage(p => Math.min(pageCount, p + 1))}
                   aria-disabled={page === pageCount}
                 />
               </PaginationItem>
+
             </PaginationContent>
           </Pagination>
         </div>
+
       </CardContent>
     </Card>
   );
@@ -282,6 +365,20 @@ export default function InvestorsPage() {
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">Investors</h1>
+
+      {/* FUND PICKER ------------------------------------------------ */}
+      <Select value={selectedFund !== null ? String(selectedFund) : ""} onValueChange={changeFund}>
+        <SelectTrigger className="w-96">
+          <SelectValue placeholder="Choose a fund" />
+        </SelectTrigger>
+        <SelectContent>
+          {funds.map(f => (
+            <SelectItem key={f.fund_id} value={String(f.fund_id)}>
+              {f.fund_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {/* ---------- MAIN LAYOUT ---------- */}
       {selected ? (
@@ -325,7 +422,7 @@ export default function InvestorsPage() {
                 {/* make table area scrollable while header & footer stay fixed */}
                 <CardContent className="p-6">
                   <div className="overflow-x-auto">
-                    <Table className="w-full table-fixed border-collapse [&_th]:truncate"> {/* [&_td]:truncate "> */}
+                    <Table className="w-full table-fixed border-collapse [&_th]:truncate"> 
                       <colgroup>
                         {["28%", "8%", "8%", "12%", "12%", "12%", "10%"].map((w, i) => (
                           <col key={i} style={{ width: w }} />
@@ -361,10 +458,10 @@ export default function InvestorsPage() {
                         holdings.map((h) => (
                           <TableRow key={h.name}>
                             <TableCell className="whitespace-pre-line break-words" title={h.name}>{h.name}</TableCell>
-                            <TableCell className="truncate" title={fmtDateListStr(h.sub_date)}>{fmtDateList(h.sub_date)}</TableCell>
-                            <TableCell className="truncate" title={fmtDateListStr(h.data_cutoff)}>{fmtDateList(h.data_cutoff)}</TableCell>
-                            <TableCell className="truncate text-right" title={fmtNumListStr(h.subscribed)}>{fmtNumList(h.subscribed)}</TableCell>
-                            <TableCell className="truncate text-right" title={fmtNumListStr(h.market_value)}>{fmtNumList(h.market_value)}</TableCell>
+                            <TableCell className="truncate align-top" title={fmtDateListStr(h.sub_date)}>{fmtDateList(h.sub_date)}</TableCell>
+                            <TableCell className="truncate align-top" title={fmtDateListStr(h.data_cutoff)}>{fmtDateList(h.data_cutoff)}</TableCell>
+                            <TableCell className="truncate text-right align-top" title={fmtNumListStr(h.subscribed)}>{fmtNumList(h.subscribed)}</TableCell>
+                            <TableCell className="truncate text-right align-top" title={fmtNumListStr(h.market_value)}>{fmtNumList(h.market_value)}</TableCell>
                             <TableCell className="truncate text-right" title={fmtNum(h.total_after_int)}>{fmtNum(h.total_after_int)}</TableCell>
                             <TableCell
                               className={`text-right ${

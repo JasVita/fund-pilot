@@ -24,6 +24,22 @@ const usdCompact = (v: number) =>
     maximumFractionDigits: 1,
   }).format(v);
 
+const uiMonthToIso = (label: string) => {
+  // "June 2025"  ->  "2025-06"
+  const [name, year] = label.split(" ");
+  const month = new Date(`${name} 1, ${year}`).getMonth() + 1; // 0-based
+  return `${year}-${month.toString().padStart(2, "0")}`;
+};
+
+const monthYearLabel = (iso: string) => {
+  const d = new Date(iso);                       // iso = "2025-01-31"
+  return d.toLocaleString("en-US", {
+    month: "long",
+    year:  "numeric",
+    timeZone: "UTC",
+  });                                            // ⇒ "January 2025"
+};
+
 /* ─── Helper styles ─────────────────────────────────── */
 const chartBox = "relative w-full h-[300px]";
 
@@ -40,76 +56,160 @@ type UnsettledRow = {
   nav_delta: string;      // negative number as a string
   snapshot_date: string;  // e.g. "2025-01-28T00:00:00.000Z"
 };
+
+type Fund = { fund_id: number; fund_name: string };
+
 /* ─── Component ─────────────────────────────────────── */
 export default function DashboardPage() {
-  /* -------- state ------------------------------------------- */
-  const [netCashLatest, setNetCashLatest] = useState<string>("—");
-  const [netCashHistory, setNetCashHistory] = useState<{ month_start: string; closing_avail: string }[]>([]);
+  /* get fund names */
+  const [funds,  setFunds]       = useState<Fund[]>([]);
+  const [fundId, setFundId]      = useState<number | null>(null);
 
-  const [redempRows, setRedempRows] = useState<UnsettledRow[]>([]);
+  /* Net-cash KPI & history */
+  const [netCashHistory , setNetCashHistory] = useState< { month_start:string; closing_avail:string }[] >([]);
+  const [monthOptions   , setMonthOptions  ] = useState<string[]>([]);
+  const [monthFilter    , setMonthFilter   ] = useState<string>(""); // dropdown value
+  const [monthValue     , setMonthValue    ] = useState<string>("—");
 
-  const [redempSum, setRedempSum] = useState<number | null>(null);
-  const [navRows, setNavRows] = useState<{ period: string; nav: string; dividend: string }[]>([]);
+  /* AUM KPI (snapshot list with paging) */
+  const [aumRows        , setAumRows      ] = useState< { snapshot:string; nav_total:string }[] >([]);
+  const [aumOptions     , setAumOptions   ] = useState<string[]>([]);
+  const [aumSelected    , setAumSelected  ] = useState<string>("");  // dropdown value
+  const [aumValue       , setAumValue     ] = useState<string>("—");
+  const [aumNextAfter   , setAumNextAfter ] = useState<string|null>(null);
 
-  /* -------- fetch both endpoints once ----------------------- */
+  /* Unsettled redemptions */
+  const [redempRows     , setRedempRows   ] = useState<UnsettledRow[]>([]);
+  const [redempSum      , setRedempSum    ] = useState<number|null>(null);
+
+  /* NAV vs. Dividend bar-chart */
+  const [navRows        , setNavRows      ] = useState< { period:string; nav:string; dividend:string }[] >([]);
+
+  /* fetch funds once ------------------------------------------------ */
   useEffect(() => {
     (async () => {
       try {
-        const [ncRes, urRes, ndRes] = await Promise.all([
-          fetch(`${API_BASE}/dashboard/net-cash`, { credentials: "include" }),
-          fetch(`${API_BASE}/dashboard/unsettled-redemption`, { credentials: "include" }),
-          fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`, { credentials: "include" }),
-          // fetch(`${API_BASE}/dashboard/net-cash`),
-          // fetch(`${API_BASE}/dashboard/unsettled-redemption`),
-          // fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div`),
+        const r = await fetch(`${API_BASE}/funds`, { credentials: "include" });
+        const j: Fund[] = await r.json();
+        setFunds(j);
+        if (!fundId && j.length) setFundId(j[0].fund_id);      // default pick
+      } catch (e) {
+        console.error("fund list fetch:", e);
+      }
+    })();
+  }, []);
+  /* -------- fetch both endpoints once ----------------------- */
+  useEffect(() => {
+    if (fundId === null) return;
+    const qp = `fund_id=${fundId}`;  
+
+    (async () => {
+      try {
+        const [ncRes, urRes, ndRes, aumRes] = await Promise.all([
+          fetch(`${API_BASE}/dashboard/net-cash?${qp}`, { credentials: "include" }),
+          fetch(`${API_BASE}/dashboard/unsettled-redemption?${qp}`, { credentials: "include" }),
+          fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div?${qp}`, { credentials: "include" }),
+          fetch(`${API_BASE}/dashboard/aum?${qp}`, { credentials:"include" }),
+
         ]);
-
-        /* --- Net-cash --------------------------------------- */
-        // const ncJson: {
-        //   latest: number | null;
-        //   history: { month_start: string; closing_avail: string }[];
-        // } = await ncRes.json();
-
-        // if (ncJson.latest != null) setNetCashLatest(usdCompact(ncJson.latest));
-        // setNetCashHistory(ncJson.history);
+        /* --- Net-cash ---------------------------------------- */
         const ncJson = await ncRes.json();
         if (Array.isArray(ncJson.history)) {
           setNetCashHistory(ncJson.history);
-          if (ncJson.latest != null) {
-            setNetCashLatest(usdCompact(ncJson.latest));
-          }
+          const opts = ncJson.history.map((r:any) =>
+            new Date(r.month_start).toLocaleString("en-US",
+              { month:"long", year:"numeric", timeZone:"UTC" })
+          );
+          setMonthOptions(opts);
+          if (!monthFilter && opts[0]) setMonthFilter(opts[0]);
         }
 
-        /* --- Unsettled redemptions -------------------------- */
-        // const urRows: UnsettledRow[] = await urRes.json();
-        // setRedempRows(urRows);
-        // setRedempSum(urRows.reduce((acc: number, r: any) => acc + Math.abs(+r.nav_delta), 0));
+        /* --- Unsettled redemptions --------------------------- */
         const urJson = await urRes.json();
+        console.log("UR urJson:", urJson);
         if (Array.isArray(urJson)) {
           setRedempRows(urJson);
-          setRedempSum(
-            urJson.reduce((acc: number, r: any) => acc + Math.abs(+r.nav_delta), 0)
-          );
+          setRedempSum(urJson.reduce((acc:number,r:any)=>acc+Math.abs(+r.nav_delta),0));
         }
 
         /* --- NAV + Dividend rows ------------------------------ */
         // setNavRows(await ndRes.json());
-        const ndJson = await ndRes.json();
-        if (Array.isArray(ndJson)) {
-          setNavRows(ndJson);
+        // const ndJson = await ndRes.json();
+
+        // if (Array.isArray(ndJson)) {
+        //   setNavRows(ndJson); 
+        // }
+
+        /* --- NAV vs Div -------------------------------------- */
+        setNavRows(await ndRes.json());
+
+        /* --- AUM rows ---------------------------------------- */
+        const aumJson = await aumRes.json();
+        if (Array.isArray(aumJson) && aumJson.length) {
+          setAumRows(aumJson);
+          setAumOptions([...new Set(aumJson.map(r=>r.snapshot))]);
+          setAumSelected(aumJson[0].snapshot);
+          setAumValue(usdCompact(+aumJson[0].nav_total));
+          setAumNextAfter(aumJson.at(-1)!.snapshot);
         }
-      } catch (err) {
-        console.error("Dashboard fetch error:", err);
-      }
+      } catch (err) { console.error("Dashboard fetch error:", err); }
     })();
-  }, []);
+  }, [fundId]);  
+
+  useEffect(() => { if (!monthFilter && monthOptions.length) setMonthFilter(monthOptions[0]); }, [monthOptions, monthFilter]);
+
+  /* -------- whenever the month drop-down changes ------------ */
+  useEffect(() => {
+    if (!monthFilter || fundId === null) return;
+    const iso = uiMonthToIso(monthFilter);
+    const qp  = `month=${iso}&fund_id=${fundId}`;
+
+    (async () => {
+      try {
+        // const res  = await fetch(`${API_BASE}/dashboard/net-cash?month=${iso}&fund_id=${qp}`, { credentials:"include" });
+        const res  = await fetch(`${API_BASE}/dashboard/net-cash?${qp}`, { credentials:"include" });
+        const json = await res.json();
+        const row  = json.history?.[0];
+        setMonthValue(row ? usdCompact(+row.closing_avail) : "—");
+      } catch (e) { console.error("month fetch", e); setMonthValue("—"); }
+    })();
+  }, [monthFilter, fundId]);  
+
+  useEffect(() => {
+
+    if (!aumSelected) return;
+    const row = aumRows.find(r => r.snapshot === aumSelected);
+    setAumValue(row ? usdCompact(+row.nav_total) : "—");
+  }, [aumSelected, aumRows]);
+  
+  /* ─────────── "load more" AUM – add fundId param ─────────── */
+  const handleAumScroll = async (e: React.UIEvent<HTMLDivElement>) => {
+
+    /*  stop if the user hasn’t reached ~100 px from the bottom  */
+    if (e.currentTarget.scrollTop + e.currentTarget.clientHeight < e.currentTarget.scrollHeight - 100) return;
+    if (!aumNextAfter || fundId === null) return;
+
+    const qp = `after=${aumNextAfter}&limit=30&fund_id=${fundId}`;
+    try {
+      const res  = await fetch(`${API_BASE}/dashboard/aum?${qp}`, { credentials:"include" });
+      const more = await res.json();             
+
+      if (Array.isArray(more) && more.length) {
+        setAumRows(prev => [...prev, ...more]);
+        setAumOptions(prev => [...new Set([...prev, ...more.map(r=>r.snapshot)])]);
+        setAumNextAfter(more.at(-1)!.snapshot);
+      } else {
+        setAumNextAfter(null);
+      }
+    } catch (err) { console.error("load more AUM:", err); }
+  };
 
   /* -------- derived metrics --------------------------------- */
   const pendingCount = redempRows.length;
   const redempValue = redempSum != null ? usdCompact(redempSum) : "—";
   const latestCashNumber = netCashHistory[0] ? Number(netCashHistory[0].closing_avail) : null;
   const redempPct = latestCashNumber && redempSum ? (redempSum / latestCashNumber) * 100 : null;
-
+  
   /* -------- Top-5 redemption rows ----------------------------- */
   const top5Redemptions = useMemo(() => {
     if (!redempRows.length || !latestCashNumber) return [];
@@ -195,30 +295,75 @@ export default function DashboardPage() {
             </SelectContent>
           </Select> */}
 
-          <Select defaultValue="all">
+          {/* <Select defaultValue="all">
             <SelectTrigger className="w-48">
               <Filter className="w-4 h-4 mr-2" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Annum Asia New Dividend Income Fund</SelectItem>
-              {/* <SelectItem value="equity">Equity Fund</SelectItem>
+              <SelectItem value="equity">Equity Fund</SelectItem>
               <SelectItem value="bond">Bond Fund</SelectItem>
-              <SelectItem value="hybrid">Hybrid Fund</SelectItem> */}
+              <SelectItem value="hybrid">Hybrid Fund</SelectItem>
             </SelectContent>
-          </Select>
+          </Select> */}
+           {/* fund picker -------------------------------------------------- */}
+            <Select value={fundId !== null ? String(fundId) : ""} onValueChange={(v) => setFundId(Number(v))} >
+              <SelectTrigger className="w-64">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Choose a fund" />
+              </SelectTrigger>
+
+              <SelectContent>
+                {funds.map((f) => (
+                  <SelectItem key={f.fund_id} value={String(f.fund_id)}>
+                    {f.fund_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
         </div>
-        <Button variant="outline" size="sm">
+        {/* <Button variant="outline" size="sm">
           <Download className="w-4 h-4 mr-2" />
           Export Report
-        </Button>
+        </Button> */}
       </div>
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* <KPICard title="Net Cash" value="$158.2M" change="+12.5%" changeType="positive" description="vs previous period" icon={DollarSign} /> */}
-        <KPICard title="Net Cash" value={netCashLatest} change="" changeType="neutral" description="" icon={DollarSign} />
-        <KPICard title="MoM P&L(Greyed for mockup only)" value="+8.7%" change="+2.3% vs avg" changeType="positive" description="Month over month" icon={TrendingUp} dimmed />
+        <KPICard title="Net Cash" value={monthValue}     change="" changeType="neutral" description="" icon={DollarSign}
+                  right={
+                      <Select value={monthFilter} onValueChange={setMonthFilter}>
+                        <SelectTrigger className="h-7 w-28 text-xs">
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {monthOptions.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+          }/>
+
+        <KPICard title="AUM" value={aumValue} change="" changeType="positive" description="" icon={TrendingUp} 
+                  right={
+                      <Select value={aumSelected} onValueChange={setAumSelected}>
+                        <SelectTrigger className="h-7 w-28 text-xs">
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent onScroll={handleAumScroll} className="max-h-60 overflow-y-auto">
+                          {aumOptions.map((iso) => (
+                            <SelectItem key={iso} value={iso}>
+                              {monthYearLabel(iso)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+          }/>
+
         <KPICard title="Unsettled Redemptions" value={<span className="text-red-600">{redempValue}</span>} change={`${pendingCount} pending`} changeType="neutral" description="Awaiting settlement" icon={AlertTriangle} />
       </div>
 

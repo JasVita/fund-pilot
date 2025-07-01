@@ -1,5 +1,4 @@
 require("dotenv").config();
-require("dotenv").config();
 const express        = require("express");
 const cors           = require("cors");
 const cookieParser   = require("cookie-parser");
@@ -22,17 +21,17 @@ if (process.env.ENV === "dev") {
 
 app.use(cookieParser());
 app.use(passport.initialize());
-
-// ----- routes -----
 app.use(require("./routes/auth.route"));
 app.use(require("./routes/dashboard.route"));
 app.use(require("./routes/investors.route"));
+app.use(require("./routes/funds.route"));
 app.use(require("./routes/aichat.route"));
-
 app.use(require("./routes/admin.route"));
 
+/* ── single route ── */
 app.get("/health", (_, res) => res.send("fundpilot API is healthy!"));
 
+// ── start listening ──
 const PORT = process.env.PORT || 5003;
 (async () => {
   await verifyConnection();
