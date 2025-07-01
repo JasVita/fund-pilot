@@ -72,6 +72,21 @@ const fmtDateListStr = (s: string) =>
     })
     .join("\n");
 
+/* ------------------------------------------------------------------ *
+ * smartPageList()
+ *   – always shows first & last page
+ *   – when current page ≤ 3 ➜  1 2 3 … last
+ *   – when current page ≥ (last-2) ➜ 1 … last-2 last-1 last
+ *   – otherwise               ➜  1 … p-1 p p+1 … last
+ * ------------------------------------------------------------------ */
+function smartPageList(page: number, last: number): (number | "gap")[] {
+  if (last <= 3) return [...Array(last)].map((_, i) => i + 1);
+  if (page <= 2)            return [1, 2, "gap", last];
+  if (page >= last - 1)     return [1, "gap", last - 1, last];
+  /* middle */
+  return [1, "gap", page - 1, page, page + 1, "gap", last];
+}
+
 /* ---- types ------------------------------------------------------- */
 type Investor = {
   investor: string;
@@ -285,34 +300,48 @@ export default function InvestorsPage() {
         <div className="mt-4">
           <Pagination>
             <PaginationContent>
+
+              {/* ◄ Prev */}
               <PaginationItem>
                 <PaginationPrevious
                   href="#"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
                   aria-disabled={page === 1}
                 />
               </PaginationItem>
-              {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
-                <PaginationItem key={n}>
-                  <PaginationLink
-                    href="#"
-                    isActive={n === page}
-                    onClick={() => setPage(n)}
-                  >
-                    {n}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
+
+              {/* numbered links / gaps */}
+              {smartPageList(page, pageCount).map((n, i) =>
+                n === "gap" ? (
+                  <PaginationItem key={`gap-${i}`}>
+                    <span className="px-2 select-none">…</span>
+                  </PaginationItem>
+                ) : (
+                  <PaginationItem key={n}>
+                    <PaginationLink
+                      href="#"
+                      isActive={n === page}
+                      onClick={() => setPage(n)}
+                    >
+                      {n}
+                    </PaginationLink>
+                  </PaginationItem>
+                )
+              )}
+
+              {/* Next ► */}
               <PaginationItem>
                 <PaginationNext
                   href="#"
-                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  onClick={() => setPage(p => Math.min(pageCount, p + 1))}
                   aria-disabled={page === pageCount}
                 />
               </PaginationItem>
+
             </PaginationContent>
           </Pagination>
         </div>
+
       </CardContent>
     </Card>
   );
