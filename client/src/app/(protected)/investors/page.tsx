@@ -157,17 +157,19 @@ export default function InvestorsPage() {
         const url = `${API_BASE}/investors/holdings?fund_id=${selectedFund}` +
                     `&investor=${encodeURIComponent(selected.investor)}`;
 
-        const r = await fetch(url, { credentials: "include" });
-        const j = await r.json() as { rows: Holding[] };
-        setHoldings(j.rows);
+        const r  = await fetch(url, { credentials: "include" });
+        const j: { rows?: Holding[] } = await r.json();
+
+        /*  ⬇ only accept real arrays */
+        setHoldings(Array.isArray(j.rows) ? j.rows : []);
       } catch (e) {
         console.error("holdings fetch:", e);
-        setHoldings([]);
+        setHoldings([]);                       // ← keep it an array on error
       } finally {
         setLoadingHoldings(false);
       }
     })();
-  }, [selectedFund, selected]);  
+  }, [selectedFund, selected]);
 
   /* ------------------------------------------------------------------ *
    *  UX helpers
@@ -390,7 +392,7 @@ export default function InvestorsPage() {
                 {/* make table area scrollable while header & footer stay fixed */}
                 <CardContent className="p-6">
                   <div className="overflow-x-auto">
-                    <Table className="w-full table-fixed border-collapse [&_th]:truncate"> {/* [&_td]:truncate "> */}
+                    <Table className="w-full table-fixed border-collapse [&_th]:truncate"> 
                       <colgroup>
                         {["28%", "8%", "8%", "12%", "12%", "12%", "10%"].map((w, i) => (
                           <col key={i} style={{ width: w }} />

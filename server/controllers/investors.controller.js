@@ -12,62 +12,86 @@ exports.portfolioOverview = async (req, res) => {
   const LIMIT = 20;
   const page  = Math.max(1, parseInt(req.query.page ?? "1", 10));
   const fundId = req.query.fund_id ? Number(req.query.fund_id) : null;
-  const lo    = (page - 1) * LIMIT + 1;
-  const hi    = page * LIMIT;
+  // const lo    = (page - 1) * LIMIT + 1;
+  // const hi    = page * LIMIT;
+  const offset = (page - 1) * LIMIT;
 
   try {
     /* ---------- pageCount (same as before) ------------------------- */
+    // const { rows: [{ total }] } = await pool.query(
+    //   `SELECT COUNT(*)::int AS total
+    //      FROM get_latest_snapshot_detail_fund($1);`,
+    //   [fundId]    
+    /* --------------------------------------------------------------
+       ① how many rows in the overview for this fund?
+    -------------------------------------------------------------- */
     const { rows: [{ total }] } = await pool.query(
       `SELECT COUNT(*)::int AS total
-         FROM get_latest_snapshot_detail_fund($1);`,
-      [fundId]     
+         FROM investor_portfolio_overview($1);`,
+      [fundId] 
     );
     const pageCount = Math.max(1, Math.ceil(total / LIMIT));
 
     /* ---------- paged slice ------------------------------------- */
-    const sliceSql = `
-      WITH
-        latest AS (
-          SELECT *
-          FROM   get_latest_snapshot_detail_fund($3)   -- fund filter
-        ),
-        redeem AS (
-          SELECT investor_name,
-                 ABS(nav_delta)::numeric AS unpaid_redeem
-          FROM   get_unsettled_redeem_6m_fund($3)      -- same filter
-        ),
-        combined AS (
-          SELECT
-            l.investor_name AS investor,
-            l.class,
-            l.number_held,
-            l.nav_value     AS current_nav,
-            r.unpaid_redeem,
-            l.status
-          FROM   latest l
-          LEFT   JOIN redeem r USING (investor_name)
-        ),
-        ranked AS (
-          SELECT *,
-                 ROW_NUMBER() OVER (
-                   ORDER BY
-                     (status = 'active')         DESC,
-                     (unpaid_redeem IS NOT NULL) DESC,
-                     investor
-                 ) AS row_num
-          FROM combined
-        )
-      SELECT investor,
-             class,
-             number_held,
-             current_nav,
-             unpaid_redeem,
-             status
-      FROM   ranked
-      WHERE  row_num BETWEEN $1 AND $2
-      ORDER  BY row_num;`;
+    // const sliceSql = `
+    //   WITH
+    //     latest AS (
+    //       SELECT *
+    //       FROM   get_latest_snapshot_detail_fund($3)   -- fund filter
+    //     ),
+    //     redeem AS (
+    //       SELECT investor_name,
+    //              ABS(nav_delta)::numeric AS unpaid_redeem
+    //       FROM   get_unsettled_redeem_6m_fund($3)      -- same filter
+    //     ),
+    //     combined AS (
+    //       SELECT
+    //         l.investor_name AS investor,
+    //         l.class,
+    //         l.number_held,
+    //         l.nav_value     AS current_nav,
+    //         r.unpaid_redeem,
+    //         l.status
+    //       FROM   latest l
+    //       LEFT   JOIN redeem r USING (investor_name)
+    //     ),
+    //     ranked AS (
+    //       SELECT *,
+    //              ROW_NUMBER() OVER (
+    //                ORDER BY
+    //                  (status = 'active')         DESC,
+    //                  (unpaid_redeem IS NOT NULL) DESC,
+    //                  investor
+    //              ) AS row_num
+    //       FROM combined
+    //     )
+    //   SELECT investor,
+    //          class,
+    //          number_held,
+    //          current_nav,
+    //          unpaid_redeem,
+    //          status
+    //   FROM   ranked
+    //   WHERE  row_num BETWEEN $1 AND $2
+    //   ORDER  BY row_num;`;
+    // const { rows } = await pool.query(sliceSql, [lo, hi, fundId]);
 
-    const { rows } = await pool.query(sliceSql, [lo, hi, fundId]);
+    /* --------------------------------------------------------------
+       ② grab the slice for this page (function already pre-orders) investor_display       AS investor, unpaid_redeem_display  AS unpaid_redeem,   
+    -------------------------------------------------------------- */
+    const sliceSql = `
+      SELECT
+          investor,    
+          class,
+          number_held,
+          current_nav,
+          unpaid_redeem,    
+          status
+        FROM investor_portfolio_overview($1)
+       OFFSET $2
+       LIMIT  $3;`;
+
+    const { rows } = await pool.query(sliceSql, [fundId, offset, LIMIT]);
     res.json({ page, pageCount, rows });
 
   } catch (err) {
@@ -100,7 +124,7 @@ exports.investorHoldings = async (req, res) => {
 
     /* ---- 2. activity wrapper that honours the fund filter ----- */
     const q = `SELECT *
-                 FROM get_investor_activity_fund($1, 0.3, $2);`;
+                 FROM get_investor_activity_fund($1::text, 0.3, $2::int);`;
     const {
       rows: [{
         inc_dates, inc_navs,
