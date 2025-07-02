@@ -81,12 +81,12 @@ exports.portfolioOverview = async (req, res) => {
     -------------------------------------------------------------- */
     const sliceSql = `
       SELECT
-          investor,    
+          investor_display       AS investor,   
           class,
           number_held,
           current_nav,
-          unpaid_redeem,    
-          status
+          unpaid_redeem_display  AS unpaid_redeem,
+          status_display         AS status
         FROM investor_portfolio_overview($1)
        OFFSET $2
        LIMIT  $3;`;

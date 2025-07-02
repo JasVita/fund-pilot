@@ -56,8 +56,8 @@ export default function AIChatPage() {
 
   /* shortcuts / examples */
   const promptShortcuts = [
-    { icon: Database, label: "/sql", description: "Generate SQL queries" },
-    { icon: FileText, label: "/explain", description: "Explain data insights" },
+    { icon: Database, label: "查詢歷史配息金額與時間", description: "Generate SQL queries" },
+    { icon: FileText, label: "查詢單一客戶目前所持的基金及每個基金的總持倉, 客戶姓名：", description: "Explain data insights" },
     { icon: BarChart3, label: "/summary", description: "Create summaries" },
   ];
 
@@ -216,7 +216,7 @@ export default function AIChatPage() {
             {/* quick actions */}
             <div className="p-4 border-b">
               <div className="text-sm font-medium mb-2">Quick Actions:</div>
-              <div className="flex space-x-2">
+              <div className="flex flex-col space-x-2">
                 {promptShortcuts.map((s) => (
                   <Button
                     key={s.label}

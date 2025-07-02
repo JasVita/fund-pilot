@@ -12,7 +12,7 @@ exports.unsettledRedemption = async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      "SELECT * FROM get_unsettled_redeem_6m_fund($1);",
+      "SELECT * FROM get_unsettled_redemptions_fund($1);",
       [fundId]
     );
     res.json(rows);
@@ -25,42 +25,40 @@ exports.unsettledRedemption = async (req, res) => {
   }
 };
  /*  GET  /dashboard/net-cash
-  *  curl -H "Cookie: fp_jwt=$JWT"      "http://localhost:5103/dashboard/net-cash?acct=233569-20010&fund_id=1"
+  *  curl -H "Cookie: fp_jwt=$JWT" "http://localhost:5103/dashboard/net-cash?acct=233569-20010&fund_id=1"
   *  Params:
   *    ?acct=233569-20010   (optional – default below)
   *    ?month=YYYY-MM       (optional – return single month only)
   *    returns { latest:number|null,  history:[… rows …] }
   */
-const defaultAccount = "233569-20010";   
-
 exports.netCash = async (req, res) => {
   const user = req.auth;
-  const acct    = req.query.acct   ?? defaultAccount;
   const period  = req.query.month  ?? null;            // "YYYY-MM"
   const fundId  = req.query.fund_id ? Number(req.query.fund_id) : null;
-  console.log("[netCash] user=%s role=%s acct=%s fund=%s Company=%s", user.email, user.role, acct, fundId, user.company_id ?? "ALL");
+  console.log("[netCash] user=%s role=%s fund=%s Company=%s", user.email, user.role, fundId, user.company_id ?? "ALL");
 
   try {
     /* ── pull 12 m history once ───────────────────────────── */
     const { rows } = await pool.query(
-      "SELECT * FROM get_closing_available_balance_fund($1, 12, $2);",
-      [acct, fundId]
+      "SELECT * FROM get_closing_available_balance_fund_all($1);",
+      [fundId]
     );
 
-    /* derive KPI numbers */
-    const latestRow = rows.reduce(
-      (acc, row) => (!acc || row.month_start > acc.month_start ? row : acc),
-      null
-    );
-    
-    /* ── single-month shortcut if &month=YYY-MM was supplied ─ */
-    const filtered  = period
-      ? rows.filter(r => r.month_start.toISOString().slice(0, 7) === period)
+    /* ---------- 3) 取得最新一筆 ----------------------------- */
+    // SQL 已 ORDER BY statement_date DESC，rows[0] 就是最新
+    const latestRow = rows[0] ?? null;
+
+    /* ---------- 4) &month=YYYY-MM 過濾（若有帶）------------ */
+    const filtered = period
+      ? rows.filter(
+          r => r.statement_date.toISOString().slice(0, 7) === period
+        )
       : rows;
 
+    /* ---------- 5) 回傳 ------------------------------------ */
     res.json({
       latest : latestRow ? parseFloat(latestRow.closing_avail) : null,
-      history: filtered,
+      history: filtered
     });
   } catch (err) {
     console.error("netCash:", err);

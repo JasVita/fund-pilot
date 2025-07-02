@@ -53,8 +53,8 @@ const usdAxis = (v: number) =>
 
 type UnsettledRow = {
   investor_name: string;
-  nav_delta: string;      // negative number as a string
-  snapshot_date: string;  // e.g. "2025-01-28T00:00:00.000Z"
+  amount: string;      // negative number as a string
+  trade_date: string;  // e.g. "2025-01-28T00:00:00.000Z"
 };
 
 type Fund = { fund_id: number; fund_name: string };
@@ -66,7 +66,7 @@ export default function DashboardPage() {
   const [fundId, setFundId]      = useState<number | null>(null);
 
   /* Net-cash KPI & history */
-  const [netCashHistory , setNetCashHistory] = useState< { month_start:string; closing_avail:string }[] >([]);
+  const [netCashHistory , setNetCashHistory] = useState< { statement_date:string; closing_avail:string }[] >([]);
   const [monthOptions   , setMonthOptions  ] = useState<string[]>([]);
   const [monthFilter    , setMonthFilter   ] = useState<string>(""); // dropdown value
   const [monthValue     , setMonthValue    ] = useState<string>("—");
@@ -117,7 +117,7 @@ export default function DashboardPage() {
         if (Array.isArray(ncJson.history)) {
           setNetCashHistory(ncJson.history);
           const opts = ncJson.history.map((r:any) =>
-            new Date(r.month_start).toLocaleString("en-US",
+            new Date(r.statement_date).toLocaleString("en-US",
               { month:"long", year:"numeric", timeZone:"UTC" })
           );
           setMonthOptions(opts);
@@ -129,7 +129,7 @@ export default function DashboardPage() {
         console.log("UR urJson:", urJson);
         if (Array.isArray(urJson)) {
           setRedempRows(urJson);
-          setRedempSum(urJson.reduce((acc:number,r:any)=>acc+Math.abs(+r.nav_delta),0));
+          setRedempSum(urJson.reduce((acc:number,r:any)=>acc+Math.abs(+r.amount),0));
         }
 
         /* --- NAV + Dividend rows ------------------------------ */
@@ -215,16 +215,16 @@ export default function DashboardPage() {
     if (!redempRows.length || !latestCashNumber) return [];
 
     return [...redempRows]
-      .sort((a, b) => Math.abs(+b.nav_delta) - Math.abs(+a.nav_delta))
+      .sort((a, b) => Math.abs(+b.amount) - Math.abs(+a.amount))
       .slice(0, 5)
       .map((r) => {
-        const amountAbs = Math.abs(+r.nav_delta);
+        const amountAbs = Math.abs(+r.amount);
         const pctOfCash = +((amountAbs / latestCashNumber) * 100).toFixed(1);
         return {
           investor: r.investor_name,
           amount: amountAbs,
           percentage: pctOfCash,
-          date: r.snapshot_date.slice(0, 7),
+          date: r.trade_date.slice(0, 7),
         };
       });
   }, [redempRows, latestCashNumber]);
@@ -234,11 +234,11 @@ export default function DashboardPage() {
     if (!netCashHistory.length) return { labels: [], datasets: [] };
 
     const ordered = [...netCashHistory].sort(
-      (a, b) => new Date(a.month_start).getTime() - new Date(b.month_start).getTime()
+      (a, b) => new Date(a.statement_date).getTime() - new Date(b.statement_date).getTime()
     );
 
     return {
-      labels: ordered.map((r) => r.month_start.slice(0, 7)), // YYYY-MM
+      labels: ordered.map((r) => r.statement_date.slice(0, 7)), // YYYY-MM
       datasets: [
         {
           label: "Net Cash",
