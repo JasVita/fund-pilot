@@ -26,51 +26,57 @@ const usd = (v: number, compact = false) =>
 const fmtNum = (v: number) =>
   new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(v);
 
-const fmtNumList = (s: string) =>
-  s
-    .split("\n")
-    .map((n, i) =>
-      Number.isFinite(Number(n)) ? (
-        <span key={i}>{fmtNum(Number(n))}{i !== s.split("\n").length - 1 && <br />}</span>
-      ) : (
-        <span key={i}>{n}{i !== s.split("\n").length - 1 && <br />}</span>
-      )
+const splitLines = (s?: string | null) => (s ?? "").split("\n");
+
+const parseLooseNumber = (raw: string) => {
+  const num = parseFloat(
+    raw.replace(/,/g, "").replace(/\.$/, "")   // kill commas + lone dot
+  );
+  return Number.isFinite(num) ? num : null;
+};
+
+const fmtNumList = (s: string | null | undefined) =>
+  splitLines(s).map((token, i, arr) => {
+    const n = parseLooseNumber(token);
+    return n !== null ? (
+      <span key={i}>{fmtNum(n)}{i !== arr.length - 1 && <br />}</span>
+    ) : (
+      <span key={i}>{token.replace(/\.$/, "")}{i !== arr.length - 1 && <br />}</span>
     );
+  });
 
-const fmtNumListStr = (s: string) =>
-  s
-    .split("\n")
-    .map((n) => (Number.isFinite(Number(n)) ? fmtNum(Number(n)) : n))
-    .join("\n");
+const fmtNumListStr = (s: string | null | undefined) =>
+  splitLines(s).map((token) => { 
+    const n = parseLooseNumber(token);
+      return n !== null ? fmtNum(n) : token.replace(/\.$/, "");
+    }).join("\n");
 
 
-const fmtDateList = (s: string) =>
-  s
-    .split("\n")
-    .map((d, i) => {
+const fmtDateList = (s: string | null | undefined) =>
+  splitLines(s).map((d, i, arr) => {
+    const dt = new Date(d);
+    const str = !isNaN(dt.getTime())
+      ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`
+      : d;
+    return (
+      <span key={i}>{str}{i !== arr.length - 1 && <br />}</span>
+    );
+  });
+
+const fmtDateListStr = (s: string | null | undefined) =>
+  splitLines(s).map((d) => {
       const dt = new Date(d);
-      const str =
-        !isNaN(dt.getTime())
-          ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`
-          : d;
-      return (
-        <span key={i}>
-          {str}
-          {i !== s.split("\n").length - 1 && <br />}
-        </span>
-      );
-    });
-
-const fmtDateListStr = (s: string) =>
-  s
-    .split("\n")
-    .map((d) => {
-      const dt = new Date(d);
-      return !isNaN(dt.getTime())
-        ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`
-        : d;
+      return !isNaN(dt.getTime()) ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}` : d;
     })
     .join("\n");
+
+/* simple USD fmt so it matches your style */
+const usdStd = (v: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(v);
 
 /* ------------------------------------------------------------------ *
  * smartPageList()
@@ -86,6 +92,95 @@ function smartPageList(page: number, last: number): (number | "gap")[] {
   /* middle */
   return [1, "gap", page - 1, page, page + 1, "gap", last];
 }
+
+
+
+// // mockup data remove later
+// /* ------------------------------------------------------------------ */
+// /* ① mock data + helper                                               */
+// /* ------------------------------------------------------------------ */
+// // type LatestHolding = {
+// //   fund_name:     string;
+// //   snapshot_date: string;  // ISO "YYYY-MM-DD"
+// //   number_held:   number;
+// //   nav_value:     number;
+// // };
+
+// const latestHoldingsMock: LatestHolding[] = [
+//   {
+//     fund_name:
+//       "Hywin Global Multi-Strategy Fund SPC - Hywin Global PE Fund | SP",
+//     snapshot_date: "2022-09-30",
+//     number_held: 302.3435,
+//     nav_value: 409_560.15,
+//   },
+//   {
+//     fund_name: "Annum Global Private Markets Fund SP",
+//     snapshot_date: "2025-03-31",
+//     number_held: 200,
+//     nav_value: 148_306.18,
+//   },
+// ];
+
+// /* simple USD fmt so it matches your style */
+// const usdStd = (v: number) =>
+//   new Intl.NumberFormat("en-US", {
+//     style: "currency",
+//     currency: "USD",
+//     maximumFractionDigits: 2,
+//   }).format(v);
+
+// /* ------------------------------------------------------------------ */
+// /* ② card component                                                   */
+// /* ------------------------------------------------------------------ */
+// const LatestHoldingsCard = (
+//   <Card className="mt-4">
+//     <CardHeader>
+//       <CardTitle>Latest Holdings (per Fund)</CardTitle>
+//     </CardHeader>
+
+//     <CardContent className="p-6">
+//       <div className="overflow-x-auto">
+//         <Table className="w-full table-fixed border-collapse [&_th]:truncate">
+//           <colgroup>
+//             {["48%", "16%", "18%", "18%"].map((w, i) => (
+//               <col key={i} style={{ width: w }} />
+//             ))}
+//           </colgroup>
+
+//           <TableHeader>
+//             <TableRow>
+//               <TableHead>Fund Name</TableHead>
+//               <TableHead className="whitespace-nowrap">Snapshot&nbsp;Date</TableHead>
+//               <TableHead className="text-right">Number&nbsp;Held</TableHead>
+//               <TableHead className="text-right">NAV&nbsp;Value</TableHead>
+//             </TableRow>
+//           </TableHeader>
+
+//           <TableBody>
+//             {latestHoldingsMock.map((h, idx) => (
+//               <TableRow key={idx}>
+//                 <TableCell className="whitespace-pre-line break-words" title={h.fund_name}>
+//                   {h.fund_name}
+//                 </TableCell>
+//                 <TableCell>
+//                   {new Date(h.snapshot_date).toLocaleDateString("en-CA")}
+//                 </TableCell>
+//                 <TableCell className="text-right font-mono">
+//                   {h.number_held.toLocaleString()}
+//                 </TableCell>
+//                 <TableCell className="text-right font-mono">
+//                   {usdStd(h.nav_value)}
+//                 </TableCell>
+//               </TableRow>
+//             ))}
+//           </TableBody>
+//         </Table>
+//       </div>
+//     </CardContent>
+//   </Card>
+// );
+// // mockup data remove later
 
 /* ---- types ------------------------------------------------------- */
 type Investor = {
@@ -107,11 +202,18 @@ type Holding = {
   pnl_pct: string;        
 };
 
+type LatestHolding = {            
+  fund_name: string;
+  snapshot_date: string;   
+  number_held: number;
+  nav_value: number;
+};
+
 type Fund = { fund_id:number; fund_name:string };   
 
 /* --------------------------------------------------------------- */
 export default function InvestorsPage() {
-  /* ① fund list + current filter ---------------------------------- */
+  /* ① fund list + current filter --------------------- */
   const [funds, setFunds] = useState<Fund[]>([]);
   const [selectedFund, setSelectedFund] = useState<number | null>(null);
 
@@ -125,6 +227,10 @@ export default function InvestorsPage() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [loadingHoldings, setLoadingHoldings] = useState(false);
 
+  /* 🟢 NEW ↓ – latest-per-fund table */
+  const [latestHoldings, setLatestHoldings] = useState<LatestHolding[]>([]);
+  const [loadingLatest, setLoadingLatest]   = useState(false);
+  
   /* ------------------------------------------------------------------ *
    * 1. load the fund list once
    * ------------------------------------------------------------------ */
@@ -185,6 +291,31 @@ export default function InvestorsPage() {
       }
     })();
   }, [selectedFund, selected]);
+
+  /* ------------------------------------------------------------------ *
+  * 3b. latest holdings across ALL funds – refetch when investor changes
+  * ------------------------------------------------------------------ */
+  useEffect(() => {                                   
+    if (!selected) { setLatestHoldings([]); return; }
+
+    (async () => {
+      try {
+        setLoadingLatest(true);
+        const url = `${API_BASE}/investors/holdings/all-funds` +
+                    `?investor=${encodeURIComponent(selected.investor)}`;
+
+        const r  = await fetch(url, { credentials: "include" });
+        const j: { rows?: LatestHolding[] } = await r.json();
+
+        setLatestHoldings(Array.isArray(j.rows) ? j.rows : []);
+      } catch (e) {
+        console.error("latest-holdings fetch:", e);
+        setLatestHoldings([]);
+      } finally {
+        setLoadingLatest(false);
+      }
+    })();
+  }, [selected]);
 
   /* ------------------------------------------------------------------ *
    *  UX helpers
@@ -485,12 +616,69 @@ export default function InvestorsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* report-PDF button */}
             <div className="flex justify-center pt-4">
               <ReportGeneratorDialog
                 defaultInvestor={selected.investor}
                 defaultTableData={tableRowsForPdf}  
               />
             </div>
+
+            {/* ── ❷ Latest-holdings-across-all-funds table ─────────────────── */}
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle>Latest Holdings&nbsp;(per&nbsp;Fund)</CardTitle>
+              </CardHeader>
+
+              <CardContent className="p-6">
+                <div className="overflow-x-auto">
+                  <Table className="w-full table-fixed border-collapse [&_th]:truncate">
+                    <colgroup>
+                      {["48%", "16%", "18%", "18%"].map((w, i) => (
+                        <col key={i} style={{ width: w }} />
+                      ))}
+                    </colgroup>
+
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Fund Name</TableHead>
+                        <TableHead className="whitespace-nowrap">
+                          Snapshot&nbsp;Date
+                        </TableHead>
+                        <TableHead className="text-right">Number&nbsp;Held</TableHead>
+                        <TableHead className="text-right">NAV&nbsp;Value</TableHead>
+                      </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                      {loadingLatest ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center">
+                            Loading…
+                          </TableCell>
+                        </TableRow>
+                      ) : latestHoldings.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center">
+                            No data
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        latestHoldings.map((h, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell className="whitespace-pre-line break-words" title={h.fund_name}>{h.fund_name}</TableCell>
+                            <TableCell className="truncate">{new Date(h.snapshot_date).toLocaleDateString("en-CA")}</TableCell>
+                            <TableCell className="truncate text-right font-mono">{h.number_held.toLocaleString()}</TableCell>
+                            <TableCell className="truncate text-right font-mono">{usdStd(h.nav_value)}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
               {/* download CTA */}
           </ResizablePanel>
         </ResizablePanelGroup>

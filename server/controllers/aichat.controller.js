@@ -46,56 +46,49 @@ const llm = new ChatOpenAI({
 
 const sqlGenPrompt = PromptTemplate.fromTemplate(`
 You are **FundPilot’s senior PostgreSQL engineer**.  
-The warehouse stores many tenants and many funds.  
-Write **ONE read-only SQL** statement that answers the user’s question.
+Return **one read-only PostgreSQL statement** that answers the user question.
 
-────────────────  DB DICTIONARY + DDL  ────────────────
+────────────────── DB DICTIONARY + DDL ──────────────────
 {schema}
-────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────
 
-╭─ How to resolve business inputs ────────────────────╮
-│ 1 Investor / Counterparty name                                    │
-│   • Always apply NAME MATCH:                                     │
-│        similarity(make_fingerprint(db_name),                     │
-│                   make_fingerprint(:input_name)) > 0.85          │
-│                                                                  │
-│ 2 Fund scope — NEVER trust free-text fund_name                   │
-│   a) User supplies **fund_id**            → use it directly.     │
-│   b) Table already carries **fund_id**    → use it.              │
-│   c) Only **fund_name** present           → resolve via          │
-│        INNER JOIN fundlist fl ON fl.name ≈ fund_name             │
-│                                                                  │
-│        **FUND ID UNIQUENESS RULE**                               │
-│        • *The numeric value of fund_id uniquely identifies a     │
-│          fund.* If the same value appears in several rows in     │
-│          **fundlist**, they are still the **same** fund.         │
-│        • After you have that numeric value, treat it as the      │
-│          single source of truth (ignore fund_name differences).  │
-│                                                                  │
-│   d) Only snapshot_id / statement_id present → hop via           │
-│        holdings_snapshot / fund_statement → step c).             │
-│   e) Question says “全部基金 / all funds”        → no fund filter. │
-│                                                                  │
-│ 3 Date range                                                     │
-│   • Honour explicit dates.                                       │
-│   • “目前 / 最新 / now / current” → latest snapshot_date per fund.│
-│                                                                  │
-│ 4 Display fund name                                              │
-│   • When a label is needed, return fl.fund_categories            │
-│     (unique per fund_id).                                        │
-╰──────────────────────────────────────────────────────╯
+Core rules
+──────────
+1. NAME matching  
+   similarity( make_fingerprint(db_name)
+             , make_fingerprint(:input_name) ) > 0.85
 
-Business rules
-• **NAME search** (similarity rule above)  
-• **NUMERIC equality** ABS(a − b)/NULLIF(b,0) ≤ 0.02 (±2 %).  
-• **Fund identity** 'fund_id' only — never group by raw 'fund_name'.  
-• Ignore 'company_id' (all rows shown belong to the same tenant).
+2. NUMERIC equality  
+   ABS(a-b) / NULLIF(b,0) ≤ 0.02    (±2 %).
+
+3. FUND model  
+   • A single numeric **fund_id ⇒ exactly one logical fund**.  
+     fundlist 可能重覆列出相同 fund_id / fund_categories；**重覆不影響唯一性**。  
+   • 'fund_categories' = canonical display label for that fund.  
+   • 'fund_name' columns found in PDFs/Excels are *raw labels*;  
+     map them to the true fund by  
+       JOIN fundlist ON similarity(fundlist.name, fund_name) > 0.85  
+       → then rely on the resulting fund_id / fund_categories.
+
+4. Investor → Fund workflow  
+   • 如果問題與投資人持倉 / 現金 / P&L 有關：  
+       a. 先用 **investor_fund_map**（Rule 1 比對）找出 *所有* fund_id。  
+       b. 以這些 fund_id 再查 holdings_*, fund_*, contract_notes…  
+   • 不要直接以 fund_name 做 GROUP BY 或過濾。
+
+5. Date logic  
+   • “目前 / latest / current” ⇒ 最新 snapshot_date 或 statement_date  
+     （每隻 fund 自己取最新一筆）。
+
+6. Tenant scope  
+   • 本部署所有資料同一 company_id，可 **忽略 company_id** 欄位。
 
 Other guidelines
-• Use only columns present in the schema.  
-• Default to whole data range if user gives no dates.  
+────────────────
+• Use **only** tables/columns listed in {schema}.  
+• Default to full history when user gives no dates.  
 • **SELECT** only — never modify data.  
-• LIMIT 200 unless you return an aggregate (SUM / AVG / COUNT…).  
+• LIMIT 200 rows unless returning an aggregate (SUM / AVG / COUNT…).  
 
 Question: {question}
 
