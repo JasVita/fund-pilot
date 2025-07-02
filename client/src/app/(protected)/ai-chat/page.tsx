@@ -56,8 +56,8 @@ export default function AIChatPage() {
 
   /* shortcuts / examples */
   const promptShortcuts = [
-    { icon: Database, label: "/sql", description: "Generate SQL queries" },
-    { icon: FileText, label: "/explain", description: "Explain data insights" },
+    // { icon: Database, label: "/sql", description: "Generate SQL queries" },
+    // { icon: FileText, label: "查詢單一客戶目前所持的基金及每個基金的總持倉, 客戶姓名：", description: "Explain data insights" },
     { icon: BarChart3, label: "/summary", description: "Create summaries" },
   ];
 
