@@ -120,3 +120,32 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════ */
+/*  NProgress customisation  ⚡ global route-change indicator      */
+/*  – keeps the default bar but colours come from CSS variables   */
+/*  – body.over-budget (set via JS) shows “critical” gradient     */
+/* ══════════════════════════════════════════════════════════════ */
+
+#nprogress        { pointer-events:none; }
+
+/* the thin bar */
+#nprogress .bar   {
+  background : var(--color-primary, #3b82f6);   /* default blue */
+  height     : 3px;
+}
+
+/* optional spinner – still hidden by JS configure(showSpinner:false)
+   but style it anyway */
+#nprogress .spinner-icon {
+  border-top-color  : var(--color-primary, #3b82f6);
+  border-left-color : var(--color-primary, #3b82f6);
+}
+
+/* when JS toggles <body class="over-budget">  (>100 % redemptions) */
+body.over-budget #nprogress .bar {
+  background : linear-gradient(90deg,#b91c1c 0%,#dc2626 45%,#f87171 100%);
+}
+
+/* (dark-mode looks fine because colours come from variables)      */
+/* ══════════════════════════════════════════════════════════════ */
