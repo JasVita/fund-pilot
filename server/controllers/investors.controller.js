@@ -16,12 +16,7 @@ exports.portfolioOverview = async (req, res) => {
   // const hi    = page * LIMIT;
   const offset = (page - 1) * LIMIT;
 
-  try {
-    /* ---------- pageCount (same as before) ------------------------- */
-    // const { rows: [{ total }] } = await pool.query(
-    //   `SELECT COUNT(*)::int AS total
-    //      FROM get_latest_snapshot_detail_fund($1);`,
-    //   [fundId]    
+  try { 
     /* --------------------------------------------------------------
        ① how many rows in the overview for this fund?
     -------------------------------------------------------------- */
@@ -31,50 +26,6 @@ exports.portfolioOverview = async (req, res) => {
       [fundId] 
     );
     const pageCount = Math.max(1, Math.ceil(total / LIMIT));
-
-    /* ---------- paged slice ------------------------------------- */
-    // const sliceSql = `
-    //   WITH
-    //     latest AS (
-    //       SELECT *
-    //       FROM   get_latest_snapshot_detail_fund($3)   -- fund filter
-    //     ),
-    //     redeem AS (
-    //       SELECT investor_name,
-    //              ABS(nav_delta)::numeric AS unpaid_redeem
-    //       FROM   get_unsettled_redeem_6m_fund($3)      -- same filter
-    //     ),
-    //     combined AS (
-    //       SELECT
-    //         l.investor_name AS investor,
-    //         l.class,
-    //         l.number_held,
-    //         l.nav_value     AS current_nav,
-    //         r.unpaid_redeem,
-    //         l.status
-    //       FROM   latest l
-    //       LEFT   JOIN redeem r USING (investor_name)
-    //     ),
-    //     ranked AS (
-    //       SELECT *,
-    //              ROW_NUMBER() OVER (
-    //                ORDER BY
-    //                  (status = 'active')         DESC,
-    //                  (unpaid_redeem IS NOT NULL) DESC,
-    //                  investor
-    //              ) AS row_num
-    //       FROM combined
-    //     )
-    //   SELECT investor,
-    //          class,
-    //          number_held,
-    //          current_nav,
-    //          unpaid_redeem,
-    //          status
-    //   FROM   ranked
-    //   WHERE  row_num BETWEEN $1 AND $2
-    //   ORDER  BY row_num;`;
-    // const { rows } = await pool.query(sliceSql, [lo, hi, fundId]);
 
     /* --------------------------------------------------------------
        ② grab the slice for this page (function already pre-orders) investor_display       AS investor, unpaid_redeem_display  AS unpaid_redeem,   
@@ -166,6 +117,35 @@ exports.investorAllFunds = async (req, res) => {
     res.json({ investor, rows });
   } catch (err) {
     console.error("investorAllFunds:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/* ------------------------------------------------------------------ *
+ * GET /investors/dividends?investor=NAME
+ * curl -H "Cookie: fp_jwt=$JWT" "http://localhost:5103/investors/holdings/dividends?investor=Feng%20Fan"
+ * ------------------------------------------------------------------ */
+exports.investorDividends = async (req, res) => {
+  const investor = (req.query.investor ?? "").trim();
+
+  if (!investor)
+    return res.status(400).json({ error: "?investor= is required" });
+
+  try {
+    /* call the PL/pgSQL helper ------------------------------------ */
+    const sql = `SELECT * FROM get_investor_dividends($1::text);`;
+    const { rows } = await pool.query(sql, [investor]);
+
+    if (rows.length === 0)
+      return res
+        .status(404)
+        .json({ error: "No dividend records for that investor" });
+
+    /* shape the response ------------------------------------------ */
+    res.json({ investor, rows });          // identical to /holdings style
+
+  } catch (err) {
+    console.error("investorDividends:", err);
     res.status(500).json({ error: err.message });
   }
 };

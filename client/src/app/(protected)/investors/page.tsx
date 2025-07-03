@@ -209,6 +209,12 @@ type LatestHolding = {
   nav_value: number;
 };
 
+type DividendRow = {
+  fund_category : string;
+  paid_date     : string;
+  amount        : string;
+};
+
 type Fund = { fund_id:number; fund_name:string };   
 
 /* --------------------------------------------------------------- */
@@ -227,9 +233,13 @@ export default function InvestorsPage() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [loadingHoldings, setLoadingHoldings] = useState(false);
 
-  /* 🟢 NEW ↓ – latest-per-fund table */
+  /* ------- latest-per-fund table */
   const [latestHoldings, setLatestHoldings] = useState<LatestHolding[]>([]);
   const [loadingLatest, setLoadingLatest]   = useState(false);
+
+  /* ------- dividend table ------------------------------ */
+  const [divRows     , setDivRows    ] = useState<DividendRow[]>([]);
+  const [loadingDivs , setLoadingDivs] = useState(false);
   
   /* ------------------------------------------------------------------ *
    * 1. load the fund list once
@@ -313,6 +323,31 @@ export default function InvestorsPage() {
         setLatestHoldings([]);
       } finally {
         setLoadingLatest(false);
+      }
+    })();
+  }, [selected]);
+
+  /* ------------------------------------------------------------------ *
+  * 3c. dividend history – refetch when investor changes
+  * ------------------------------------------------------------------ */
+  useEffect(() => {
+    if (!selected) { setDivRows([]); return; }
+
+    (async () => {
+      try {
+        setLoadingDivs(true);
+        const url = `${API_BASE}/investors/holdings/dividends` +
+                    `?investor=${encodeURIComponent(selected.investor)}`;
+
+        const r  = await fetch(url, { credentials: "include" });
+        const j: { rows?: DividendRow[] } = await r.json();
+
+        setDivRows(Array.isArray(j.rows) ? j.rows : []);
+      } catch (e) {
+        console.error("dividends fetch:", e);
+        setDivRows([]);
+      } finally {
+        setLoadingDivs(false);
       }
     })();
   }, [selected]);
@@ -679,7 +714,65 @@ export default function InvestorsPage() {
                 </div>
               </CardContent>
             </Card>
-              {/* download CTA */}
+
+            {/* ── ❸ Dividend-history table ─────────────────────────────── */}
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle>Dividend&nbsp;History</CardTitle>
+              </CardHeader>
+
+              <CardContent className="p-6">
+                <div className="overflow-x-auto">
+                  <Table className="w-full table-fixed border-collapse [&_th]:truncate">
+                    <colgroup>
+                      {["60%", "20%", "20%"].map((w, i) => (
+                        <col key={i} style={{ width: w }} />
+                      ))}
+                    </colgroup>
+
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Fund Name</TableHead>
+                        <TableHead className="whitespace-nowrap">Paid&nbsp;Date</TableHead>
+                        <TableHead className="text-right">Amount&nbsp;(USD)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                      {loadingDivs ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center">
+                            Loading…
+                          </TableCell>
+                        </TableRow>
+                      ) : divRows.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center">
+                            No data
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        divRows.map((d, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell className="whitespace-pre-line break-words" title={d.fund_category}>
+                              {d.fund_category}
+                            </TableCell>
+                            <TableCell className="truncate">
+                              {new Date(d.paid_date).toLocaleDateString("en-CA")}
+                            </TableCell>
+                            <TableCell className="truncate text-right font-mono text-green-700">
+                              {usdStd(+d.amount)}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* download CTA */}
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (

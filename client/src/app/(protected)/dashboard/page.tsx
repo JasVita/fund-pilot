@@ -207,19 +207,58 @@ export default function DashboardPage() {
   /* -------- derived metrics --------------------------------- */
   const pendingCount = redempRows.length;
   const redempValue = redempSum != null ? usdCompact(redempSum) : "—";
-  const latestCashNumber = netCashHistory[0] ? Number(netCashHistory[0].closing_avail) : null;
-  const redempPct = latestCashNumber && redempSum ? (redempSum / latestCashNumber) * 100 : null;
+  const latestCash = netCashHistory[0] ? Number(netCashHistory[0].closing_avail) : null;
+  const redempPct = latestCash && redempSum ? (redempSum / latestCash) * 100 : null;
   
+  /* clamp to [0 , 100] for the chart – keep the raw value for the label */
+  const pctClamped  = redempPct != null ? Math.min(Math.max(redempPct, 0), 100) : 0;
+  const pctLabel    = redempPct != null ? `${redempPct.toFixed(1)}%` : "—";
+
+  /* ---------- dynamic gradient helper ----------------------- */
+  const makeRedGradient = (ctx: any, darker = false) => {
+    const { ctx: g, chartArea } = ctx.chart;
+    if (!chartArea) return darker ? "#b91c1c" : "#ef4444";           // 1st render
+
+    /* vertical gradient, light → deep red                       */
+    const grad = g.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+    if (darker) {
+      grad.addColorStop(0, "#ef4444");   // red-500
+      grad.addColorStop(1, "#b91c1c");   // red-700
+    } else {
+      grad.addColorStop(0, "#fca5a5");   // red-300
+      grad.addColorStop(1, "#ef4444");   // red-500
+    }
+    return grad;
+  };
+
+  /* dataset slices ---------------------------------------------------- */
+  const gaugeData = {
+    labels: ["Outstanding", "Remaining"],
+    datasets: [
+      {
+        data: [pctClamped, 100 - pctClamped],
+        backgroundColor: (ctx: any) =>
+          ctx.parsed !== undefined && ctx.dataIndex === 0      // first slice
+            ? makeRedGradient(ctx, redempPct != null && redempPct > 100)
+            : "#e5e7eb",                                       // grey slice
+        hoverBackgroundColor: (ctx: any) =>
+          ctx.dataIndex === 0
+            ? makeRedGradient(ctx, true)
+            : "#e5e7eb",
+        borderWidth: 0,
+      },
+    ],
+  };
   /* -------- Top-5 redemption rows ----------------------------- */
   const top5Redemptions = useMemo(() => {
-    if (!redempRows.length || !latestCashNumber) return [];
+    if (!redempRows.length || !latestCash) return [];
 
     return [...redempRows]
       .sort((a, b) => Math.abs(+b.amount) - Math.abs(+a.amount))
       .slice(0, 5)
       .map((r) => {
         const amountAbs = Math.abs(+r.amount);
-        const pctOfCash = +((amountAbs / latestCashNumber) * 100).toFixed(1);
+        const pctOfCash = +((amountAbs / latestCash) * 100).toFixed(1);
         return {
           investor: r.investor_name,
           amount: amountAbs,
@@ -227,7 +266,7 @@ export default function DashboardPage() {
           date: r.trade_date.slice(0, 7),
         };
       });
-  }, [redempRows, latestCashNumber]);
+  }, [redempRows, latestCash]);
 
   /* -------- Net-cash line chart ----------------------------- */
   const netCashChart = useMemo(() => {
@@ -463,27 +502,36 @@ export default function DashboardPage() {
             <div className="flex flex-col items-center justify-center">
               <div className="relative w-36 h-36">
                 <Doughnut
-                  data={{
-                    labels: ["Outstanding", "Remaining"],
-                    datasets: [
-                      {
-                        data: [redempPct ?? 0, redempPct != null ? 100 - redempPct : 100],
-                        backgroundColor: ["#ef4444", "#e5e7eb"],
-                        borderWidth: 0,
-                      },
-                    ],
-                  }}
-                  options={{
-                    rotation: 0,
-                    cutout: "75%",
-                    plugins: {
-                      legend: { display: false },
-                      tooltip: { enabled: false },
-                    },
-                  }}
+                data={gaugeData}
+                options={{
+                  rotation: 0,
+                  cutout: "75%",
+                  plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                }}
+                  // data={{
+                  //   labels: ["Outstanding", "Remaining"],
+                  //   datasets: [
+                  //     {
+                  //       data: [redempPct ?? 0, redempPct != null ? 100 - redempPct : 100],
+                  //       backgroundColor: ["#ef4444", "#e5e7eb"],
+                  //       borderWidth: 0,
+                  //     },
+                  //   ],
+                  // }}
+                  // options={{
+                  //   rotation: 0,
+                  //   cutout: "75%",
+                  //   plugins: {
+                  //     legend: { display: false },
+                  //     tooltip: { enabled: false },
+                  //   },
+                  // }}
                 />
-                <span className="absolute inset-0 flex items-center justify-center text-destructive font-bold text-2xl">
-                  {redempPct ? `${redempPct.toFixed(1)}%` : "—"}
+                <span className={`absolute inset-0 flex items-center justify-center
+                 font-bold text-2xl
+                 ${redempPct != null && redempPct > 100 ? "text-red-700" : "text-destructive"}`}>
+                  {/* {redempPct ? `${redempPct.toFixed(1)}%` : "—"} */}
+                  {pctLabel}
                 </span>
               </div>
               <p className="mt-4 text-sm text-center text-muted-foreground">
@@ -524,7 +572,7 @@ export default function DashboardPage() {
 
       {/* footer */}
       <footer className="flex justify-between text-sm text-muted-foreground">
-        <span>Last file processed: NAV_2024_12_03.xlsx • 2 errors found</span>
+        {/* <span>Last file processed: NAV_2024_12_03.xlsx • 2 errors found</span> */}
         <span>Last updated: {new Date().toLocaleString()}</span>
       </footer>
     </div>
