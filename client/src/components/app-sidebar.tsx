@@ -67,29 +67,29 @@ const navMain = [
       // },
     ],
   },
-  {
-    title: "Files",
-    url: "/files",
-    icon: FileText,
-    items: [
-      // {
-      //   title: "Introduction",
-      //   url: "#",
-      // },
-      // {
-      //   title: "Get Started",
-      //   url: "#",
-      // },
-      // {
-      //   title: "Tutorials",
-      //   url: "#",
-      // },
-      // {
-      //   title: "Changelog",
-      //   url: "#",
-      // },
-    ],
-  },
+  // {
+  //   title: "Files",
+  //   url: "/files",
+  //   icon: FileText,
+  //   items: [
+  //     // {
+  //     //   title: "Introduction",
+  //     //   url: "#",
+  //     // },
+  //     // {
+  //     //   title: "Get Started",
+  //     //   url: "#",
+  //     // },
+  //     // {
+  //     //   title: "Tutorials",
+  //     //   url: "#",
+  //     // },
+  //     // {
+  //     //   title: "Changelog",
+  //     //   url: "#",
+  //     // },
+  //   ],
+  // },
   {
     title: "AI Chat",
     url: "/ai-chat",
