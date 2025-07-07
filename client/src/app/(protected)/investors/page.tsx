@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext, PaginationLink } from "@/components/ui/pagination";
+import InvestorPortfolioCard from "./InvestorPortfolioCard";
+import type { InvestorRow } from "./InvestorPortfolioTable"; 
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ReportGeneratorDialog from "@/components/pdfGenerator/ReportGeneratorDialog";
@@ -93,95 +95,6 @@ function smartPageList(page: number, last: number): (number | "gap")[] {
   return [1, "gap", page - 1, page, page + 1, "gap", last];
 }
 
-
-
-// // mockup data remove later
-// /* ------------------------------------------------------------------ */
-// /* ① mock data + helper                                               */
-// /* ------------------------------------------------------------------ */
-// // type LatestHolding = {
-// //   fund_name:     string;
-// //   snapshot_date: string;  // ISO "YYYY-MM-DD"
-// //   number_held:   number;
-// //   nav_value:     number;
-// // };
-
-// const latestHoldingsMock: LatestHolding[] = [
-//   {
-//     fund_name:
-//       "Hywin Global Multi-Strategy Fund SPC - Hywin Global PE Fund | SP",
-//     snapshot_date: "2022-09-30",
-//     number_held: 302.3435,
-//     nav_value: 409_560.15,
-//   },
-//   {
-//     fund_name: "Annum Global Private Markets Fund SP",
-//     snapshot_date: "2025-03-31",
-//     number_held: 200,
-//     nav_value: 148_306.18,
-//   },
-// ];
-
-// /* simple USD fmt so it matches your style */
-// const usdStd = (v: number) =>
-//   new Intl.NumberFormat("en-US", {
-//     style: "currency",
-//     currency: "USD",
-//     maximumFractionDigits: 2,
-//   }).format(v);
-
-// /* ------------------------------------------------------------------ */
-// /* ② card component                                                   */
-// /* ------------------------------------------------------------------ */
-// const LatestHoldingsCard = (
-//   <Card className="mt-4">
-//     <CardHeader>
-//       <CardTitle>Latest Holdings (per Fund)</CardTitle>
-//     </CardHeader>
-
-//     <CardContent className="p-6">
-//       <div className="overflow-x-auto">
-//         <Table className="w-full table-fixed border-collapse [&_th]:truncate">
-//           <colgroup>
-//             {["48%", "16%", "18%", "18%"].map((w, i) => (
-//               <col key={i} style={{ width: w }} />
-//             ))}
-//           </colgroup>
-
-//           <TableHeader>
-//             <TableRow>
-//               <TableHead>Fund Name</TableHead>
-//               <TableHead className="whitespace-nowrap">Snapshot&nbsp;Date</TableHead>
-//               <TableHead className="text-right">Number&nbsp;Held</TableHead>
-//               <TableHead className="text-right">NAV&nbsp;Value</TableHead>
-//             </TableRow>
-//           </TableHeader>
-
-//           <TableBody>
-//             {latestHoldingsMock.map((h, idx) => (
-//               <TableRow key={idx}>
-//                 <TableCell className="whitespace-pre-line break-words" title={h.fund_name}>
-//                   {h.fund_name}
-//                 </TableCell>
-//                 <TableCell>
-//                   {new Date(h.snapshot_date).toLocaleDateString("en-CA")}
-//                 </TableCell>
-//                 <TableCell className="text-right font-mono">
-//                   {h.number_held.toLocaleString()}
-//                 </TableCell>
-//                 <TableCell className="text-right font-mono">
-//                   {usdStd(h.nav_value)}
-//                 </TableCell>
-//               </TableRow>
-//             ))}
-//           </TableBody>
-//         </Table>
-//       </div>
-//     </CardContent>
-//   </Card>
-// );
-// // mockup data remove later
-
 /* ---- types ------------------------------------------------------- */
 type Investor = {
   investor: string;
@@ -241,6 +154,28 @@ export default function InvestorsPage() {
   const [divRows     , setDivRows    ] = useState<DividendRow[]>([]);
   const [loadingDivs , setLoadingDivs] = useState(false);
   
+  /* ----------------------------------------------------------------
+     ✦ NEW  handleRowSelect adapter
+     Keeps type-safety between InvestorRow → Investor
+  ------------------------------------------------------------------ */
+  const handleRowSelect = useCallback(
+    (row: InvestorRow) => {
+      let target = row as unknown as Investor;           // initial guess
+
+      if (!row.investor || row.investor.trim() === "") {
+        const idx = rows.findIndex(r => r === row);
+        const prevNamed = [...rows]
+          .slice(0, idx)
+          .reverse()
+          .find(r => r.investor && r.investor.trim() !== "");
+        if (prevNamed) target = prevNamed;
+      }
+
+      setSelected(target);
+    },
+    [rows],
+  );
+
   /* ------------------------------------------------------------------ *
    * 1. load the fund list once
    * ------------------------------------------------------------------ */
@@ -385,132 +320,132 @@ export default function InvestorsPage() {
     </Select>
   );
 
-  /* -------------------------------------------------------------- */
-  const TableCard = (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle>Investor Portfolio Overview</CardTitle>
-      </CardHeader>
-      <CardContent className="h-full flex flex-col">
-        <div className="flex-1 overflow-x-auto">
-          <Table className="w-full table-fixed [&_td]:truncate [&_th]:truncate">
-            <colgroup>
-              <col style={{ width: "26%" }} className="max-w-[220px]" />
-              <col style={{ width: "14%" }} className="max-w-[110px]" />
-              <col style={{ width: "14%" }} className="max-w-[110px]" />
-              <col style={{ width: "16%" }} className="max-w-[120px]" />
-              <col style={{ width: "16%" }} className="max-w-[140px]" />
-              <col style={{ width: "14%" }} className="max-w-[90px]" />
-            </colgroup>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="sticky left-0 bg-background z-10">
-                  Investor
-                </TableHead>
-                <TableHead>Class</TableHead>
-                <TableHead>Number&nbsp;Held</TableHead>
-                <TableHead className="text-left">Current&nbsp;NAV</TableHead>
-                <TableHead className="text-left">Unpaid&nbsp;Redeem</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
+  /* -------------------portfolio overview------------------------------------------- */
+  // const TableCard = (
+  //   <Card className="h-full">
+  //     <CardHeader>
+  //       <CardTitle>Investor Portfolio Overview</CardTitle>
+  //     </CardHeader>
+  //     <CardContent className="h-full flex flex-col">
+  //       <div className="flex-1 overflow-x-auto">
+  //         <Table className="w-full table-fixed [&_td]:truncate [&_th]:truncate">
+  //           <colgroup>
+  //             <col style={{ width: "26%" }} className="max-w-[220px]" />
+  //             <col style={{ width: "14%" }} className="max-w-[110px]" />
+  //             <col style={{ width: "14%" }} className="max-w-[110px]" />
+  //             <col style={{ width: "16%" }} className="max-w-[120px]" />
+  //             <col style={{ width: "16%" }} className="max-w-[140px]" />
+  //             <col style={{ width: "14%" }} className="max-w-[90px]" />
+  //           </colgroup>
+  //           <TableHeader>
+  //             <TableRow>
+  //               <TableHead className="sticky left-0 bg-background z-10">
+  //                 Investor
+  //               </TableHead>
+  //               <TableHead>Class</TableHead>
+  //               <TableHead>Number&nbsp;Held</TableHead>
+  //               <TableHead className="text-left">Current&nbsp;NAV</TableHead>
+  //               <TableHead className="text-left">Unpaid&nbsp;Redeem</TableHead>
+  //               <TableHead>Status</TableHead>
+  //             </TableRow>
+  //           </TableHeader>
 
-            <TableBody>
-              {(rows ?? []).map((inv, idx) => (
-                <TableRow
-                  key={`${inv.investor}-${inv.class ?? "none"}-${idx}`}
-                  onClick={() => setSelected(inv)}
-                  className="cursor-pointer hover:bg-muted/50"
-                >
-                  <TableCell className="font-medium sticky left-0 bg-background" title={inv.investor}>
-                    {inv.investor}
-                  </TableCell>
-                  <TableCell>
-                    {inv.class ? (
-                      <Badge variant="secondary">{inv.class}</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {inv.number_held ?? (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-mono">
-                    {usd(inv.current_nav)}
-                  </TableCell>
-                  <TableCell className="font-mono">
-                    {inv.unpaid_redeem !== null ? (
-                      <span className="text-destructive">
-                        {usd(inv.unpaid_redeem)}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={inv.status === "active" ? "default" : "outline"}
-                    >
-                      {inv.status}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+  //           <TableBody>
+  //             {(rows ?? []).map((inv, idx) => (
+  //               <TableRow
+  //                 key={`${inv.investor}-${inv.class ?? "none"}-${idx}`}
+  //                 onClick={() => setSelected(inv)}
+  //                 className="cursor-pointer hover:bg-muted/50"
+  //               >
+  //                 <TableCell className="font-medium sticky left-0 bg-background" title={inv.investor}>
+  //                   {inv.investor}
+  //                 </TableCell>
+  //                 <TableCell>
+  //                   {inv.class ? (
+  //                     <Badge variant="secondary">{inv.class}</Badge>
+  //                   ) : (
+  //                     <span className="text-muted-foreground">—</span>
+  //                   )}
+  //                 </TableCell>
+  //                 <TableCell>
+  //                   {inv.number_held ?? (
+  //                     <span className="text-muted-foreground">—</span>
+  //                   )}
+  //                 </TableCell>
+  //                 <TableCell className="font-mono">
+  //                   {usd(inv.current_nav)}
+  //                 </TableCell>
+  //                 <TableCell className="font-mono">
+  //                   {inv.unpaid_redeem !== null ? (
+  //                     <span className="text-destructive">
+  //                       {usd(inv.unpaid_redeem)}
+  //                     </span>
+  //                   ) : (
+  //                     <span className="text-muted-foreground">—</span>
+  //                   )}
+  //                 </TableCell>
+  //                 <TableCell>
+  //                   <Badge
+  //                     variant={inv.status === "active" ? "default" : "outline"}
+  //                   >
+  //                     {inv.status}
+  //                   </Badge>
+  //                 </TableCell>
+  //               </TableRow>
+  //             ))}
+  //           </TableBody>
+  //         </Table>
+  //       </div>
 
-        {/* pagination */}
-        <div className="mt-4">
-          <Pagination>
-            <PaginationContent>
+  //       {/* pagination */}
+  //       <div className="mt-4">
+  //         <Pagination>
+  //           <PaginationContent>
 
-              {/* ◄ Prev */}
-              <PaginationItem>
-                <PaginationPrevious
-                  href="#"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  aria-disabled={page === 1}
-                />
-              </PaginationItem>
+  //             {/* ◄ Prev */}
+  //             <PaginationItem>
+  //               <PaginationPrevious
+  //                 href="#"
+  //                 onClick={() => setPage(p => Math.max(1, p - 1))}
+  //                 aria-disabled={page === 1}
+  //               />
+  //             </PaginationItem>
 
-              {/* numbered links / gaps */}
-              {smartPageList(page, pageCount).map((n, i) =>
-                n === "gap" ? (
-                  <PaginationItem key={`gap-${i}`}>
-                    <span className="px-2 select-none">…</span>
-                  </PaginationItem>
-                ) : (
-                  <PaginationItem key={n}>
-                    <PaginationLink
-                      href="#"
-                      isActive={n === page}
-                      onClick={() => setPage(n)}
-                    >
-                      {n}
-                    </PaginationLink>
-                  </PaginationItem>
-                )
-              )}
+  //             {/* numbered links / gaps */}
+  //             {smartPageList(page, pageCount).map((n, i) =>
+  //               n === "gap" ? (
+  //                 <PaginationItem key={`gap-${i}`}>
+  //                   <span className="px-2 select-none">…</span>
+  //                 </PaginationItem>
+  //               ) : (
+  //                 <PaginationItem key={n}>
+  //                   <PaginationLink
+  //                     href="#"
+  //                     isActive={n === page}
+  //                     onClick={() => setPage(n)}
+  //                   >
+  //                     {n}
+  //                   </PaginationLink>
+  //                 </PaginationItem>
+  //               )
+  //             )}
 
-              {/* Next ► */}
-              <PaginationItem>
-                <PaginationNext
-                  href="#"
-                  onClick={() => setPage(p => Math.min(pageCount, p + 1))}
-                  aria-disabled={page === pageCount}
-                />
-              </PaginationItem>
+  //             {/* Next ► */}
+  //             <PaginationItem>
+  //               <PaginationNext
+  //                 href="#"
+  //                 onClick={() => setPage(p => Math.min(pageCount, p + 1))}
+  //                 aria-disabled={page === pageCount}
+  //               />
+  //             </PaginationItem>
 
-            </PaginationContent>
-          </Pagination>
-        </div>
+  //           </PaginationContent>
+  //         </Pagination>
+  //       </div>
 
-      </CardContent>
-    </Card>
-  );
+  //     </CardContent>
+  //   </Card>
+  // );
 
   /* >>> convert live holdings → TableRowData */
   const tableRowsForPdf: TableRowData[] = holdings.map((h) => ({
@@ -552,13 +487,29 @@ export default function InvestorsPage() {
           className="flex-1 min-w-0 h-[calc(100vh-10rem)]"
         >
           {/* Left = table */}
-          <ResizablePanel
+          {/* <ResizablePanel
             defaultSize={70}
             minSize={20}
             maxSize={80}
             className="pr-2 overflow-auto"
           >
             {TableCard}
+          </ResizablePanel> */}
+          {/* Left = table */}
+          <ResizablePanel
+            defaultSize={70}
+            minSize={20}
+            maxSize={80}
+            className="pr-2 overflow-auto"
+          >
+            <InvestorPortfolioCard
+              rows={rows}
+              loading={rows.length === 0 && page === 1 /* tiny heuristic */}
+              page={page}
+              pageCount={pageCount}
+              onPageChange={setPage}          // keeps paging state in parent
+              onSelectRow={handleRowSelect}      // open the right-side drawer
+            />
           </ResizablePanel>
 
           <ResizableHandle withHandle />
@@ -776,7 +727,15 @@ export default function InvestorsPage() {
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (
-        TableCard
+        // TableCard
+        <InvestorPortfolioCard
+          rows={rows}
+          loading={rows.length === 0 && page === 1}
+          page={page}
+          pageCount={pageCount}
+          onPageChange={setPage}
+          onSelectRow={handleRowSelect}
+        />
       )}
     </div>
   );
