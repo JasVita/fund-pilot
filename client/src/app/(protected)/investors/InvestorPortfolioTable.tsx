@@ -19,24 +19,24 @@ import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 /* ---------- row model ---------------------------- */
-export type InvestorRow = {
-  investor      : string | null;
-  class         : string | null;
-  number_held   : string | null;
-  current_nav   : number;
-  unpaid_redeem : number | null;
-  status        : 'active' | 'inactive' | null;
+export type Investor = {
+  investor: string | null;
+  class: string | null;
+  number_held: string | null;
+  current_nav: number;
+  unpaid_redeem: number | null;
+  status: 'active' | 'inactive' | null;
 };
 
 /* ---------- props -------------------------------- */
 type Props = {
-  rows        : InvestorRow[];
-  loading     : boolean;
-  page        : number;          // 1-based
-  pageCount   : number;
-  quickFilter : string;          // 🔍 text typed by the user
+  rows: Investor[];
+  loading: boolean;
+  page: number;          // 1-based
+  pageCount: number;
+  quickFilter: string;          // 🔍 text typed by the user
   onPageChange: (n: number) => void;
-  onSelectRow : (r: InvestorRow) => void;
+  onSelectRow: (r: Investor) => void;
 };
 
 const PAGE_SIZE = 20;
@@ -50,7 +50,7 @@ export default function InvestorPortfolioTable({
   onPageChange,
   onSelectRow,
 }: Props) {
-  const gridApiRef = useRef<GridApi<InvestorRow> | null>(null);
+  const gridApiRef = useRef<GridApi<Investor> | null>(null);
 
   /* ----- helper : set quick-filter for v32 & earlier ------------- */
   const applyQuickFilter = (api: GridApi | null, text: string) => {
@@ -62,52 +62,52 @@ export default function InvestorPortfolioTable({
   };
 
   /* ----- column definitions ------------------------------------- */
-  const columnDefs: ColDef<InvestorRow>[] = useMemo(
+  const columnDefs: ColDef<Investor>[] = useMemo(
     () => [
       {
-        headerName : 'Investor',
-        field      : 'investor',
-        flex       : 2,
+        headerName: 'Investor',
+        field: 'investor',
+        flex: 2,
         valueGetter: p => p.data?.investor ?? '—',
-        cellClass  : (p: CellClassParams<InvestorRow>) =>
+        cellClass: (p: CellClassParams<Investor>) =>
           p.value === '—' ? 'ag-text-muted' : 'font-medium',
       },
       { headerName: 'Class', field: 'class', flex: 1, valueGetter: p => p.data?.class ?? '—' },
       { headerName: 'Number Held', field: 'number_held', flex: 1, valueGetter: p => p.data?.number_held ?? '—' },
       {
         headerName: 'Current NAV',
-        field     : 'current_nav',
-        flex      : 1.2,
-        valueFormatter: (p: ValueFormatterParams<InvestorRow>) =>
+        field: 'current_nav',
+        flex: 1.2,
+        valueFormatter: (p: ValueFormatterParams<Investor>) =>
           p.value != null
             ? p.value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
             : '—',
-        cellClass : 'font-mono',
+        cellClass: 'font-mono',
       },
       {
         headerName: 'Unpaid Redeem',
-        field     : 'unpaid_redeem',
-        flex      : 1.2,
-        valueFormatter: (p: ValueFormatterParams<InvestorRow>) =>
+        field: 'unpaid_redeem',
+        flex: 1.2,
+        valueFormatter: (p: ValueFormatterParams<Investor>) =>
           p.value != null
             ? p.value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
             : '—',
-        cellClass : (p: CellClassParams<InvestorRow>) =>
+        cellClass: (p: CellClassParams<Investor>) =>
           p.value != null ? 'text-destructive font-mono' : 'ag-text-muted',
       },
       {
-        headerName : 'Status',
-        field      : 'status',
-        flex       : 1,
+        headerName: 'Status',
+        field: 'status',
+        flex: 1,
         valueGetter: p => p.data?.status ?? '',
-        cellRenderer: (p: ICellRendererParams<InvestorRow>) => p.value ?? '',
+        cellRenderer: (p: ICellRendererParams<Investor>) => p.value ?? '',
       },
     ],
     [],
   );
 
   /* ----- grid ready -------------------------------------------- */
-  const onGridReady = (e: GridReadyEvent<InvestorRow>) => {
+  const onGridReady = (e: GridReadyEvent<Investor>) => {
     gridApiRef.current = e.api;
     e.api.paginationGoToPage(page - 1);
     if (loading) e.api.showLoadingOverlay();
@@ -144,7 +144,7 @@ export default function InvestorPortfolioTable({
   /* -------------- render --------------------------------------- */
   return (
     <div className="ag-theme-quartz w-full" style={{ height: 400 }}>
-      <AgGridReact<InvestorRow>
+      <AgGridReact<Investor>
         rowData={rows}
         columnDefs={columnDefs}
         defaultColDef={{ resizable: true, sortable: true }}
@@ -156,7 +156,7 @@ export default function InvestorPortfolioTable({
         onPaginationChanged={handlePaginationChanged}
         /* events */
         onGridReady={onGridReady}
-        onRowClicked={(e: RowClickedEvent<InvestorRow>) => {
+        onRowClicked={(e: RowClickedEvent<Investor>) => {
           if (e.data) onSelectRow(e.data);
         }}
       />

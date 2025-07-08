@@ -7,32 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext, PaginationLink } from "@/components/ui/pagination";
 import InvestorPortfolioCard from "./InvestorPortfolioCard";
-import type { InvestorRow } from "./InvestorPortfolioTable";
+import type { Investor } from "./InvestorPortfolioTable";
 
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ReportGeneratorDialog from "@/components/pdfGenerator/ReportGeneratorDialog";
 import type { TableRowData } from "@/components/pdfGenerator/InvestmentTable";
-
-/*  🟢 mock data shown immediately (replaces blank white card)   */
-const MOCK_ROWS: InvestorRow[] = [
-  {
-    investor: "Alice Alpha",
-    class: "A",
-    number_held: "1 000",
-    current_nav: 1_250_000,
-    unpaid_redeem: null,
-    status: "active",
-  },
-  {
-    investor: "Bob Beta",
-    class: "B",
-    number_held: "800",
-    current_nav: 960_000,
-    unpaid_redeem: 120_000,
-    status: "inactive",
-  },
-];
 
 
 /* ---- helpers ----------------------------------------------------- */
@@ -117,16 +97,7 @@ function smartPageList(page: number, last: number): (number | "gap")[] {
 }
 
 /* ---- types ------------------------------------------------------- */
-// type Investor = {
-//   investor: string;
-//   class: string | null;
-//   number_held: string | null;
-//   current_nav: number;
-//   unpaid_redeem: number | null;
-//   status: "active" | "inactive";
-// };
-
-type Investor = InvestorRow;
+// type Investor = InvestorRow;
 
 type Holding = {
   name: string;
@@ -161,11 +132,9 @@ export default function InvestorsPage() {
 
   /* ② table data & UI state --------------------------------------- */
   const [page, setPage] = useState(1);
-  // const [rows, setRows] = useState<Investor[]>([]);
-  // const [rows, setRows] = useState<InvestorRow[]>(MOCK_ROWS);
+  const [rows, setRows] = useState<Investor[]>([]);
   const [pageCount, setPageCount] = useState(1);
-  const [rows, setRows] = useState<InvestorRow[]>(MOCK_ROWS);
-  const [selected, setSelected] = useState<InvestorRow | null>(null);
+  const [selected, setSelected] = useState<Investor | null>(null);
   /* ③ drawer state ------------------------------------------------ */
   // const [selected, setSelected] = useState<Investor | null>(null);
   const [holdings, setHoldings] = useState<Holding[]>([]);
@@ -184,7 +153,7 @@ export default function InvestorsPage() {
      Keeps type-safety between InvestorRow → Investor
   ------------------------------------------------------------------ */
   const handleRowSelect = useCallback(
-    (row: InvestorRow) => {
+    (row: Investor) => {
       let target = row;           // initial guess
 
       if (!row.investor || row.investor.trim() === "") {
@@ -228,10 +197,9 @@ export default function InvestorsPage() {
         const url = `${API_BASE}/investors/portfolio?fund_id=${selectedFund}&page=${page}`;
         const r = await fetch(url, { credentials: "include" });
         const j = await r.json() as {
-          page: number; pageCount: number; rows: InvestorRow[];
+          page: number; pageCount: number; rows: Investor[];
         };
-        // setRows(j.rows);
-        setRows(j.rows.length ? j.rows : MOCK_ROWS);
+        setRows(j.rows);
         setPageCount(j.pageCount);
       } catch (e) { console.error("portfolio fetch:", e); }
     })();
@@ -326,153 +294,6 @@ export default function InvestorsPage() {
   const escClose = useCallback((e: KeyboardEvent) => { if (e.key === "Escape") setSelected(null); }, []);
   useEffect(() => { window.addEventListener("keydown", escClose); return () => window.removeEventListener("keydown", escClose); }, [escClose]);
 
-  /* ------------------------------------------------------------------ *
-   * 4. JSX
-   * ------------------------------------------------------------------ */
-  /* -- FUND PICKER -------------------------------------------------- */
-  const FundPicker = (
-    <Select value={selectedFund != null ? String(selectedFund) : ""}
-      onValueChange={changeFund}>
-      <SelectTrigger className="w-96">
-        <SelectValue placeholder="Choose a fund" />
-      </SelectTrigger>
-      <SelectContent>
-        {funds.map(f => (
-          <SelectItem key={f.fund_id} value={String(f.fund_id)}>
-            {f.fund_name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-
-  /* -------------------portfolio overview------------------------------------------- */
-  // const TableCard = (
-  //   <Card className="h-full">
-  //     <CardHeader>
-  //       <CardTitle>Investor Portfolio Overview</CardTitle>
-  //     </CardHeader>
-  //     <CardContent className="h-full flex flex-col">
-  //       <div className="flex-1 overflow-x-auto">
-  //         <Table className="w-full table-fixed [&_td]:truncate [&_th]:truncate">
-  //           <colgroup>
-  //             <col style={{ width: "26%" }} className="max-w-[220px]" />
-  //             <col style={{ width: "14%" }} className="max-w-[110px]" />
-  //             <col style={{ width: "14%" }} className="max-w-[110px]" />
-  //             <col style={{ width: "16%" }} className="max-w-[120px]" />
-  //             <col style={{ width: "16%" }} className="max-w-[140px]" />
-  //             <col style={{ width: "14%" }} className="max-w-[90px]" />
-  //           </colgroup>
-  //           <TableHeader>
-  //             <TableRow>
-  //               <TableHead className="sticky left-0 bg-background z-10">
-  //                 Investor
-  //               </TableHead>
-  //               <TableHead>Class</TableHead>
-  //               <TableHead>Number&nbsp;Held</TableHead>
-  //               <TableHead className="text-left">Current&nbsp;NAV</TableHead>
-  //               <TableHead className="text-left">Unpaid&nbsp;Redeem</TableHead>
-  //               <TableHead>Status</TableHead>
-  //             </TableRow>
-  //           </TableHeader>
-
-  //           <TableBody>
-  //             {(rows ?? []).map((inv, idx) => (
-  //               <TableRow
-  //                 key={`${inv.investor}-${inv.class ?? "none"}-${idx}`}
-  //                 onClick={() => setSelected(inv)}
-  //                 className="cursor-pointer hover:bg-muted/50"
-  //               >
-  //                 <TableCell className="font-medium sticky left-0 bg-background" title={inv.investor}>
-  //                   {inv.investor}
-  //                 </TableCell>
-  //                 <TableCell>
-  //                   {inv.class ? (
-  //                     <Badge variant="secondary">{inv.class}</Badge>
-  //                   ) : (
-  //                     <span className="text-muted-foreground">—</span>
-  //                   )}
-  //                 </TableCell>
-  //                 <TableCell>
-  //                   {inv.number_held ?? (
-  //                     <span className="text-muted-foreground">—</span>
-  //                   )}
-  //                 </TableCell>
-  //                 <TableCell className="font-mono">
-  //                   {usd(inv.current_nav)}
-  //                 </TableCell>
-  //                 <TableCell className="font-mono">
-  //                   {inv.unpaid_redeem !== null ? (
-  //                     <span className="text-destructive">
-  //                       {usd(inv.unpaid_redeem)}
-  //                     </span>
-  //                   ) : (
-  //                     <span className="text-muted-foreground">—</span>
-  //                   )}
-  //                 </TableCell>
-  //                 <TableCell>
-  //                   <Badge
-  //                     variant={inv.status === "active" ? "default" : "outline"}
-  //                   >
-  //                     {inv.status}
-  //                   </Badge>
-  //                 </TableCell>
-  //               </TableRow>
-  //             ))}
-  //           </TableBody>
-  //         </Table>
-  //       </div>
-
-  //       {/* pagination */}
-  //       <div className="mt-4">
-  //         <Pagination>
-  //           <PaginationContent>
-
-  //             {/* ◄ Prev */}
-  //             <PaginationItem>
-  //               <PaginationPrevious
-  //                 href="#"
-  //                 onClick={() => setPage(p => Math.max(1, p - 1))}
-  //                 aria-disabled={page === 1}
-  //               />
-  //             </PaginationItem>
-
-  //             {/* numbered links / gaps */}
-  //             {smartPageList(page, pageCount).map((n, i) =>
-  //               n === "gap" ? (
-  //                 <PaginationItem key={`gap-${i}`}>
-  //                   <span className="px-2 select-none">…</span>
-  //                 </PaginationItem>
-  //               ) : (
-  //                 <PaginationItem key={n}>
-  //                   <PaginationLink
-  //                     href="#"
-  //                     isActive={n === page}
-  //                     onClick={() => setPage(n)}
-  //                   >
-  //                     {n}
-  //                   </PaginationLink>
-  //                 </PaginationItem>
-  //               )
-  //             )}
-
-  //             {/* Next ► */}
-  //             <PaginationItem>
-  //               <PaginationNext
-  //                 href="#"
-  //                 onClick={() => setPage(p => Math.min(pageCount, p + 1))}
-  //                 aria-disabled={page === pageCount}
-  //               />
-  //             </PaginationItem>
-
-  //           </PaginationContent>
-  //         </Pagination>
-  //       </div>
-
-  //     </CardContent>
-  //   </Card>
-  // );
-
   /* >>> convert live holdings → TableRowData */
   const tableRowsForPdf: TableRowData[] = holdings.map((h) => ({
     productName: h.name,
@@ -530,7 +351,7 @@ export default function InvestorsPage() {
           >
             <InvestorPortfolioCard
               rows={rows}
-              loading={rows.length === 0 && page === 1 /* tiny heuristic */}
+              loading={rows.length === 0 && page === 1}
               page={page}
               pageCount={pageCount}
               onPageChange={setPage}          // keeps paging state in parent
