@@ -35,11 +35,10 @@ async function fetchAsDataURL(path: string, key: string): Promise<string> {
 }
 
 /* ---------- helpers for static images ---------------------------- */
-const getCoverImg          = () => fetchAsDataURL("/cover-bg.png",           "cover");
-const getLogoImg           = () => fetchAsDataURL("/logo-white-cover.png",   "logo1");
-const getBlackLogoTableImg = () => fetchAsDataURL("/logo-black-table.png",   "logo2");
-const getLogoTableImg      = () => fetchAsDataURL("/logo-white-table.png",   "logoT");
-const getLogoDiscImg       = () => fetchAsDataURL("/logo-white-disclaimer.png","logoD");
+const getCoverImg        = () => fetchAsDataURL("/cover-bg.png",             "cover");
+const getLogoCoverImg    = () => fetchAsDataURL("/logo-white-cover.png",     "logoCover");
+const getLogoTableBlack  = () => fetchAsDataURL("/logo-black-table.png",     "logoTableBlk");
+const getLogoDisclaimer  = () => fetchAsDataURL("/logo-white-disclaimer.png","logoDisc");
 
 /* ---------- helpers for numbers / dates -------------------------- */
 const fmtYYYYMM = (s: string) => {
@@ -67,19 +66,21 @@ const fmtMoney = (v: string) => {
 /* a helper for multiline cells (split on \n) */
 const fmtMoneyLines = (v: string) => v.split("\n").map(fmtMoney).join("\n");
 
-/* ---------- load & register NotoSans font (once) ------------------- */
+/* ---------- ZhengTiFan font loader ------------------------------ */
 async function ensureZhengTiFan(doc: jsPDF) {
-  const FLAG = "_zhengTiFanLoaded";
-  if ((ensureZhengTiFan as any)[FLAG]) return;
+  const FONT_FILE = "ZhengTiFan.ttf";
+  const FONT_NAME = "ZhengTiFan";
+  const CACHE_KEY = "_ZhengTiFan_base64";
 
-  const dataUrl = await fetchAsDataURL("/fonts/ZhengTiFan.ttf", "zhengTiFan");
-  const base64  = dataUrl.split(",")[1];                // strip the prefix
+  let base64: string | undefined = (ensureZhengTiFan as any)[CACHE_KEY];
+  if (!base64) {
+    const dataUrl = await fetchAsDataURL(`/fonts/${FONT_FILE}`, CACHE_KEY);
+    base64 = dataUrl.split(",")[1];
+    (ensureZhengTiFan as any)[CACHE_KEY] = base64;
+  }
 
-  (doc as any).addFileToVFS("ZhengTiFan.ttf", base64);
-  (doc as any).addFont("ZhengTiFan.ttf", "ZhengTiFan", "normal");
-
-  console.log("[FontList]", doc.getFontList());         // optional debug
-  (ensureZhengTiFan as any)[FLAG] = true;
+  (doc as any).addFileToVFS(FONT_FILE, base64);
+  (doc as any).addFont(FONT_FILE, FONT_NAME, "normal");
 }
 
 /* ---------- main builder ----------------------------------------- */
@@ -94,13 +95,13 @@ export async function generateInvestmentReport(data: ReportData) {
 
   await ensureZhengTiFan(doc);
 
-  const [bg, logo1, logo2, logo3, logo4] = await Promise.all([
-    getCoverImg(), getLogoImg(), getLogoTableImg(), getLogoDiscImg(), getBlackLogoTableImg()
+  const [bg, logoCover, logoDisc, logoTableBlk] = await Promise.all([
+    getCoverImg(), getLogoCoverImg(), getLogoDisclaimer(), getLogoTableBlack(),
   ]);
 
   /* ============ Page 1 – Cover ================================== */
   doc.addImage(bg,    "PNG", 0, 0, pageW, pageH);
-  doc.addImage(logo1, "PNG", 20.4, 16.4, 129.2, 45.8);
+  doc.addImage(logoCover, "PNG", 20.4, 16.4, 129.2, 45.8);
 
   // ${data.investor}存續報告
   doc.setFont("helvetica", "bold").setFontSize(26).setTextColor(255);
@@ -128,7 +129,7 @@ export async function generateInvestmentReport(data: ReportData) {
   /* ============ Page 2 – Table ================================== */
   doc.addPage();
   // doc.addImage(bg, "PNG", 0, 0, pageW, pageH);
-  doc.addImage(logo4, "PNG", 280, 12, 70, 29.6);
+  doc.addImage(logoTableBlk, "PNG", 280, 12, 70, 29.6);
 
   doc.setFont("ZhengTiFan", "normal").setFontSize(28).setTextColor(0); // black
   doc.text("已投資產品總結", 30, 40);
@@ -178,7 +179,7 @@ export async function generateInvestmentReport(data: ReportData) {
   y += headerH + TABLE_GAP;  
 
   /* ---- switch back to Helvetica for the rest ------------------- */
-  doc.setFont("helvetica", "normal").setTextColor(0);
+  doc.setFont("ZhengTiFan", "normal").setTextColor(0);
 
   /* ---------- body rows ----------------------------------------- */
   for (const [idx, row] of data.tableData.entries()) {
@@ -242,7 +243,7 @@ export async function generateInvestmentReport(data: ReportData) {
   /* ============ Page 3 – Disclaimer ============================== */
   doc.addPage();
   doc.addImage(bg, "PNG", 0, 0, pageW, pageH);
-  doc.addImage(logo3, "PNG", 238, 14.7, 83.5, 29.6);
+  doc.addImage(logoDisc, "PNG", 238, 14.7, 83.5, 29.6);
 
   doc.setFont("helvetica").setFontSize(15).setTextColor(255);
   const disclaimer =

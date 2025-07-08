@@ -9,47 +9,93 @@ const { pool } = require("../config/db");
  * • Response: { page, pageCount, rows:[…≤20] }
  * ------------------------------------------------------------------ */
 exports.portfolioOverview = async (req, res) => {
-  const LIMIT = 20;
-  const page  = Math.max(1, parseInt(req.query.page ?? "1", 10));
+  /* ----------------------------------------------------------------
+   * • NO server-side pagination any more – just return the whole set
+   * • The page/pageCount fields are kept (always 1) for compatibility
+   * ---------------------------------------------------------------- */
   const fundId = req.query.fund_id ? Number(req.query.fund_id) : null;
-  // const lo    = (page - 1) * LIMIT + 1;
-  // const hi    = page * LIMIT;
-  const offset = (page - 1) * LIMIT;
 
-  try { 
-    /* --------------------------------------------------------------
-       ① how many rows in the overview for this fund?
-    -------------------------------------------------------------- */
-    const { rows: [{ total }] } = await pool.query(
-      `SELECT COUNT(*)::int AS total
-         FROM investor_portfolio_overview($1);`,
-      [fundId] 
-    );
-    const pageCount = Math.max(1, Math.ceil(total / LIMIT));
-
-    /* --------------------------------------------------------------
-       ② grab the slice for this page (function already pre-orders) investor_display       AS investor, unpaid_redeem_display  AS unpaid_redeem,   
-    -------------------------------------------------------------- */
-    const sliceSql = `
+  try {
+    /* ① pull the full overview list -------------------------------- */
+    const fullSql = `
       SELECT
-          investor_display       AS investor,   
+          investor,
           class,
           number_held,
           current_nav,
-          unpaid_redeem_display  AS unpaid_redeem,
-          status_display         AS status
-        FROM investor_portfolio_overview($1)
-       OFFSET $2
-       LIMIT  $3;`;
+          unpaid_redeem_display AS unpaid_redeem,
+          status_display        AS status
+        FROM investor_portfolio_overview($1);`;
 
-    const { rows } = await pool.query(sliceSql, [fundId, offset, LIMIT]);
-    res.json({ page, pageCount, rows });
+    const { rows } = await pool.query(fullSql, [fundId]);
+
+    /* ② respond ---------------------------------------------------- */
+    res.json({
+      page      : 1,         // ← no pagination any more
+      pageCount : 1,
+      rows,                  // ← entire data set
+    });
 
   } catch (err) {
     console.error("portfolioOverview:", err);
     res.status(500).json({ error: err.message });
   }
 };
+
+// exports.portfolioOverview = async (req, res) => {
+//   const LIMIT = 20;
+//   const page  = Math.max(1, parseInt(req.query.page ?? "1", 10));
+//   const fundId = req.query.fund_id ? Number(req.query.fund_id) : null;
+//   // const lo    = (page - 1) * LIMIT + 1;
+//   // const hi    = page * LIMIT;
+//   const offset = (page - 1) * LIMIT;
+
+//   try { 
+//     /* --------------------------------------------------------------
+//        ① how many rows in the overview for this fund?
+//     -------------------------------------------------------------- */
+//     const { rows: [{ total }] } = await pool.query(
+//       `SELECT COUNT(*)::int AS total
+//          FROM investor_portfolio_overview($1);`,
+//       [fundId] 
+//     );
+//     const pageCount = Math.max(1, Math.ceil(total / LIMIT));
+
+//     /* --------------------------------------------------------------
+//        ② grab the slice for this page (function already pre-orders) investor_display       AS investor, unpaid_redeem_display  AS unpaid_redeem,   
+//     -------------------------------------------------------------- */
+//     const sliceSql = `
+//       SELECT
+//           investor,   
+//           class,
+//           number_held,
+//           current_nav,
+//           unpaid_redeem_display  AS unpaid_redeem,
+//           status_display         AS status
+//         FROM investor_portfolio_overview($1)
+//        OFFSET $2
+//        LIMIT  $3;`;
+
+//       // const sliceSql = `
+//       //   SELECT
+//       //       investor_display       AS investor,   
+//       //       class,
+//       //       number_held,
+//       //       current_nav,
+//       //       unpaid_redeem_display  AS unpaid_redeem,
+//       //       status_display         AS status
+//       //     FROM investor_portfolio_overview($1)
+//       //    OFFSET $2
+//       //    LIMIT  $3;`;
+
+//     const { rows } = await pool.query(sliceSql, [fundId, offset, LIMIT]);
+//     res.json({ page, pageCount, rows });
+
+//   } catch (err) {
+//     console.error("portfolioOverview:", err);
+//     res.status(500).json({ error: err.message });
+//   }
+// };
 
 /* ------------------------------------------------------------------ *
  * GET /investors/holdings?investor=A&fund_id=K
