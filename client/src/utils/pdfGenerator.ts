@@ -88,6 +88,27 @@ async function ensureZhengTiFan(doc: jsPDF) {
   (doc as any).addFont(FONT_FILE, FONT_NAME, "normal");
 }
 
+function fmtProfitLines(val: string): string {
+  return val
+    .split("\n")
+    .map(line => {
+      const raw = line.trim();                               // visible trim
+      if (raw === "" || raw.toUpperCase() === "NA") return raw;
+
+      /* remove all spaces / NBSPs / commas for numeric tests */
+      const clean = raw.replace(/[\s,\u00A0]/g, "");
+
+      /* pull the numeric value (drop any sign / %) */
+      const num   = parseFloat(clean.replace(/^[+-]?/, "").replace(/%$/, ""));
+      const hasSign = /^[+-]/.test(clean);                   // on the clean text
+      const sign = num > 0 && !hasSign ? "+" : hasSign ? clean[0] : "";
+
+      /* body = number without sign / % but keep internal formatting */
+      const body = raw.replace(/^[+-]?/, "").replace(/%$/, "");
+      return `${sign}${body}%`;
+    })
+    .join("\n");
+}
 /* ---------- main builder ----------------------------------------- */
 export async function generateInvestmentReport(data: ReportData) {
   const nameInitials = initials(data.investor);
@@ -250,33 +271,19 @@ export async function generateInvestmentReport(data: ReportData) {
     let zebra = 0;
 
     for (const logical of data.tableData) {
-      const flatRows = splitIntoChunks(logical);
+      const flatRows = splitIntoChunks(logical);                  // paginate long items
 
       for (const row of flatRows) {
-        const raw = row.estimatedProfit.trim();
-
-        // 1. ""  → ""
-        // 2. "NA"→ "NA"
-        // 3. numeric → prepend "+" if >0 and not already signed, then add "%"
-        let profitDisplay = "";
-        if (raw === "" || raw.toUpperCase() === "NA") {
-          profitDisplay = raw;                        // "" or "NA"
-        } else {
-          const num = parseFloat(raw.replace(/%$/, ""));   // strip % if present
-          const sign = num > 0 && !/^[+-]/.test(raw) ? "+" : "";
-          const body = raw.replace(/^[+-]?/, "").replace(/%$/, ""); // bare number
-          profitDisplay = `${sign}${body}%`;               // re-assemble
-        }
-        /* ---------------------------------------------------------- */
-
         const cells = [
           row.productName,
           row.subscriptionTime,
           row.dataDeadline,
           fmtMoneyLines(row.subscriptionAmount),
           fmtMoneyLines(row.marketValue),
-          fmtMoneyLines(row.totalAfterDeduction.split("\n").map(to2dp).join("\n")),
-          profitDisplay,                                 // ← now has “+” when >0
+          fmtMoneyLines(
+            row.totalAfterDeduction.split("\n").map(to2dp).join("\n")
+          ),
+          fmtProfitLines(row.estimatedProfit),                    // ← NEW helper
         ];
 
         const wrapped = cells.map((txt, i) =>
@@ -286,34 +293,35 @@ export async function generateInvestmentReport(data: ReportData) {
           )
         ) as string[][];
 
-        const rowH =
-          Math.max(...wrapped.map((w) => w.length)) * lineGap + 4;
+        const rowH = Math.max(...wrapped.map(w => w.length)) * lineGap + 4;
 
-        if (y + rowH > pageH - BOTTOM_MARGIN) {
-          y = startNewTablePage();
-        }
+        /* page break? ------------------------------------------------- */
+        if (y + rowH > pageH - BOTTOM_MARGIN) y = startNewTablePage();
 
+        /* zebra background ------------------------------------------- */
         const bg = zebra % 2 ? [217, 217, 217] : [232, 232, 232];
         colW.forEach((w, i) =>
           doc.setFillColor(bg[0], bg[1], bg[2]).rect(colX[i], y, w, rowH, "F")
         );
 
+        /* draw the text ---------------------------------------------- */
         wrapped.forEach((lines, colIdx) => {
           const cx = colX[colIdx] + colW[colIdx] / 2;
+
           lines.forEach((ln, li) => {
             const v = ln.trim();
 
+            /* colour only the P&L column */
             if (colIdx === 6) {
-              if (/^-/.test(v)) {                          // negative
-                doc.setTextColor(192, 0, 0);               // red
-              } else if (/^\d|^\+/.test(v)) {              // 0 or positive
-                doc.setTextColor(0, 192, 0);               // green
-              } else {                                     // “NA” …
-                doc.setTextColor(0, 0, 0);                 // black
-              }
+              const clean = v.replace(/[\s\u00A0]/g, "");       // zap NBSP/space
+              if (/^-/.test(clean))       doc.setTextColor(192, 0, 0);   // red
+              else if (/^\+|\d/.test(clean))
+                                        doc.setTextColor(0, 192, 0);    // green
+              else                       doc.setTextColor(0, 0, 0);     // NA / blank
             } else {
               doc.setTextColor(0);
             }
+
             doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
           });
         });
