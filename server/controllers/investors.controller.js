@@ -41,61 +41,6 @@ exports.portfolioOverview = async (req, res) => {
   }
 };
 
-// exports.portfolioOverview = async (req, res) => {
-//   const LIMIT = 20;
-//   const page  = Math.max(1, parseInt(req.query.page ?? "1", 10));
-//   const fundId = req.query.fund_id ? Number(req.query.fund_id) : null;
-//   // const lo    = (page - 1) * LIMIT + 1;
-//   // const hi    = page * LIMIT;
-//   const offset = (page - 1) * LIMIT;
-
-//   try {
-//     /* --------------------------------------------------------------
-//        ① how many rows in the overview for this fund?
-//     -------------------------------------------------------------- */
-//     const { rows: [{ total }] } = await pool.query(
-//       `SELECT COUNT(*)::int AS total
-//          FROM investor_portfolio_overview($1);`,
-//       [fundId]
-//     );
-//     const pageCount = Math.max(1, Math.ceil(total / LIMIT));
-
-//     /* --------------------------------------------------------------
-//        ② grab the slice for this page (function already pre-orders) investor_display       AS investor, unpaid_redeem_display  AS unpaid_redeem,
-//     -------------------------------------------------------------- */
-//     const sliceSql = `
-//       SELECT
-//           investor,
-//           class,
-//           number_held,
-//           current_nav,
-//           unpaid_redeem_display  AS unpaid_redeem,
-//           status_display         AS status
-//         FROM investor_portfolio_overview($1)
-//        OFFSET $2
-//        LIMIT  $3;`;
-
-//       // const sliceSql = `
-//       //   SELECT
-//       //       investor_display       AS investor,
-//       //       class,
-//       //       number_held,
-//       //       current_nav,
-//       //       unpaid_redeem_display  AS unpaid_redeem,
-//       //       status_display         AS status
-//       //     FROM investor_portfolio_overview($1)
-//       //    OFFSET $2
-//       //    LIMIT  $3;`;
-
-//     const { rows } = await pool.query(sliceSql, [fundId, offset, LIMIT]);
-//     res.json({ page, pageCount, rows });
-
-//   } catch (err) {
-//     console.error("portfolioOverview:", err);
-//     res.status(500).json({ error: err.message });
-//   }
-// };
-
 /* ------------------------------------------------------------------ *
  * GET /investors/holdings?investor=A&fund_id=K
  * curl -H "Cookie: fp_jwt=$JWT" "http://localhost:5003/investors/holdings?fund_id=2&investor=Xie%20Rui"

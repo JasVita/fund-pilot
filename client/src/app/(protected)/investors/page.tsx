@@ -454,7 +454,7 @@ export default function InvestorsPage() {
                 defaultInvestor={selected.investor ?? ""}
                 defaultTableData={tableRowsForPdf}
               /> */}
-              <ReportGeneratorDialog defaultInvestor={selected.investor ?? ""} />
+              <ReportGeneratorDialog key={selected.investor} defaultInvestor={selected.investor ?? ""} />
             </div>
 
             {/* ── ❷ Latest-holdings-across-all-funds table ─────────────────── */}

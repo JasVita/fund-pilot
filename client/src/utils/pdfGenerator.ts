@@ -247,22 +247,36 @@ export async function generateInvestmentReport(data: ReportData) {
   doc.setFont("ZhengTiFan", "normal").setTextColor(0);
 
     /* ---------- body rows ----------------------------------------- */
-    let zebra = 0;                      // keeps striping correct across pages
+    let zebra = 0;
 
     for (const logical of data.tableData) {
       const flatRows = splitIntoChunks(logical);
 
       for (const row of flatRows) {
+        const raw = row.estimatedProfit.trim();
+
+        // 1. ""  → ""
+        // 2. "NA"→ "NA"
+        // 3. numeric → prepend "+" if >0 and not already signed, then add "%"
+        let profitDisplay = "";
+        if (raw === "" || raw.toUpperCase() === "NA") {
+          profitDisplay = raw;                        // "" or "NA"
+        } else {
+          const num = parseFloat(raw.replace(/%$/, ""));   // strip % if present
+          const sign = num > 0 && !/^[+-]/.test(raw) ? "+" : "";
+          const body = raw.replace(/^[+-]?/, "").replace(/%$/, ""); // bare number
+          profitDisplay = `${sign}${body}%`;               // re-assemble
+        }
+        /* ---------------------------------------------------------- */
+
         const cells = [
           row.productName,
           row.subscriptionTime,
           row.dataDeadline,
           fmtMoneyLines(row.subscriptionAmount),
           fmtMoneyLines(row.marketValue),
-          fmtMoneyLines(
-            row.totalAfterDeduction.split("\n").map(to2dp).join("\n")
-          ),
-          row.estimatedProfit,
+          fmtMoneyLines(row.totalAfterDeduction.split("\n").map(to2dp).join("\n")),
+          profitDisplay,                                 // ← now has “+” when >0
         ];
 
         const wrapped = cells.map((txt, i) =>
