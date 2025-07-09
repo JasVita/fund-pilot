@@ -10,9 +10,9 @@ import type { Investor } from "./InvestorPortfolioTable";
 
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import ReportGeneratorDialog from "@/components/pdfGenerator/ReportGeneratorDialog";
-import type { TableRowData } from "@/components/pdfGenerator/InvestmentTable";
 
+// import type { TableRowData } from "@/components/pdfGenerator/InvestmentTable";
+import ReportGeneratorDialog from "@/components/pdfGenerator/ReportGeneratorDialog";
 
 /* ---- helpers ----------------------------------------------------- */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
@@ -294,18 +294,18 @@ export default function InvestorsPage() {
   useEffect(() => { window.addEventListener("keydown", escClose); return () => window.removeEventListener("keydown", escClose); }, [escClose]);
 
   /* >>> convert live holdings → TableRowData */
-  const tableRowsForPdf: TableRowData[] = holdings.map((h) => ({
-    productName: h.name,
-    subscriptionTime: h.sub_date,          // already "YYYY-MM" list\n…
-    dataDeadline: h.data_cutoff,
-    subscriptionAmount: h.subscribed,
-    marketValue: h.market_value,
-    totalAfterDeduction:
-      h.total_after_int !== null ? h.total_after_int.toString() : "N/A",
-    estimatedProfit:
-      h.pnl_pct === "NA" ? "NA"
-        : `${Number(h.pnl_pct) > 0 ? "+" : ""}${h.pnl_pct}%`,
-  }));
+  // const tableRowsForPdf: TableRowData[] = holdings.map((h) => ({
+  //   productName: h.name,
+  //   subscriptionTime: h.sub_date,          // already "YYYY-MM" list\n…
+  //   dataDeadline: h.data_cutoff,
+  //   subscriptionAmount: h.subscribed,
+  //   marketValue: h.market_value,
+  //   totalAfterDeduction:
+  //     h.total_after_int !== null ? h.total_after_int.toString() : "N/A",
+  //   estimatedProfit:
+  //     h.pnl_pct === "NA" ? "NA"
+  //       : `${Number(h.pnl_pct) > 0 ? "+" : ""}${h.pnl_pct}%`,
+  // }));
 
   /* -------------------------------------------------------------- */
   return (
@@ -449,10 +449,11 @@ export default function InvestorsPage() {
 
             {/* report-PDF button */}
             <div className="flex justify-center pt-4">
-              <ReportGeneratorDialog
+              {/* <ReportGeneratorDialog
                 defaultInvestor={selected.investor ?? ""}
                 defaultTableData={tableRowsForPdf}
-              />
+              /> */}
+              <ReportGeneratorDialog defaultInvestor={selected.investor ?? ""} />
             </div>
 
             {/* ── ❷ Latest-holdings-across-all-funds table ─────────────────── */}

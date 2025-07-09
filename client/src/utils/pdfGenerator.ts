@@ -53,11 +53,20 @@ const to2dp = (s: string) => {
 /* ————— initials from full name ————— */
 const initials = (full: string) => full.trim().split(/\s+/).map(w => w[0].toUpperCase()).join("");
 
-/* ————— 1-comma-per-thousand, 2 dp ————— */
+/* ——— 1-comma-per-thousand, 2 dp ——— */
 const fmtMoney = (v: string) => {
-  const n = Number(String(v).replace(/,/g, ""));
-  return isNaN(n) ? v : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const txt = v.trim();
+  if (!txt) return "";                         // already blank ➜ keep blank
+
+  const n = Number(txt.replace(/,/g, ""));
+  if (!Number.isFinite(n) || n === 0) return "";   // ← NEW: hide 0 / 0.00
+
+  return n.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 };
+
 
 /* a helper for multiline cells (split on \n) */
 const fmtMoneyLines = (v: string) => v.split("\n").map(fmtMoney).join("\n");
@@ -89,7 +98,7 @@ export async function generateInvestmentReport(data: ReportData) {
 
   /* printable area */
   const TOP_MARGIN = 55;   // first table header sits here
-  const BOTTOM_MARGIN = 25;   // keep footer area clear
+  const BOTTOM_MARGIN = 45;   // keep footer area clear
   const TABLE_GAP = 0.5;
 
   const colW = [73, 32, 32, 41, 41, 41, 50];
@@ -99,9 +108,8 @@ export async function generateInvestmentReport(data: ReportData) {
   const tableX = 30;
   let cursor = tableX;
   colW.forEach(w => { colX.push(cursor); cursor += w + TABLE_GAP; });
-  const tableW = cursor - tableX - TABLE_GAP;   // effective width
 
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: [pageW, pageH] });
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: [pageW, pageH], compress: true });
 
   await ensureZhengTiFan(doc);
 
@@ -134,13 +142,6 @@ export async function generateInvestmentReport(data: ReportData) {
     return startY + headerH + TABLE_GAP;
   }
 
-  /* ------ helper: start a new “page-2 style” table page --------- */
-  // function startNewTablePage(): number {
-  //   doc.addPage();
-  //   doc.addImage(logoTableBlk, "PNG", 280, 12, 70, 29.6);
-  //   doc.setFont("ZhengTiFan").setFontSize(28).text("已投資產品總結", 30, 40);
-  //   return drawTableHeader(TOP_MARGIN);
-  // }
   /* ------------ footer: reusable on every table-page ------------ */
   function drawFooter() {
     doc.setFont("ZhengTiFan").setFontSize(12).setTextColor(0);
@@ -154,6 +155,7 @@ export async function generateInvestmentReport(data: ReportData) {
   /* ------ helper: start a new “page-2 style” table page ---------- */
   function startNewTablePage(): number {
     doc.addPage();
+    doc.setTextColor(0);     
     doc.addImage(logoTableBlk, "PNG", 280, 12, 70, 29.6);
     doc.setFont("ZhengTiFan").setFontSize(28).text("已投資產品總結", 30, 40);
     drawFooter();                     // 👈  add the footer right away
@@ -190,104 +192,123 @@ export async function generateInvestmentReport(data: ReportData) {
   /* ============ Page 2 – Table ================================== */
   let y = startNewTablePage();
 
-  /* -------------------------------------------------------------- *
-  * explodeMultiLineRow(): turn 1 logical row into N 1-line rows   *
-  * -------------------------------------------------------------- */
-  function explodeMultiLineRow(r: ReportData["tableData"][number]) {
+  /** -----------------------------------------------------------------
+   * splitIntoChunks()
+   *   • takes a “logical” row (one fund)
+   *   • breaks it into sub-rows that all fit on a page
+   * ---------------------------------------------------------------- */
+  function splitIntoChunks(r: ReportData["tableData"][number]) {
     const split = (s: string) => s.split("\n");
-    const linesArr = [
-      split(r.productName),               // 0
+
+    const cols = [
+      split(r.productName),
       split(r.subscriptionTime).map(fmtYYYYMM),
       split(r.dataDeadline).map(fmtYYYYMM),
       split(fmtMoneyLines(r.subscriptionAmount)),
       split(fmtMoneyLines(r.marketValue)),
-      split(fmtMoneyLines(
-        r.totalAfterDeduction.split("\n").map(to2dp).join("\n"))),
-      [r.estimatedProfit],                // single value
+      split(
+        fmtMoneyLines(
+          r.totalAfterDeduction.split("\n").map(to2dp).join("\n")
+        )
+      ),
+      [r.estimatedProfit],
     ];
 
-    const rows: typeof r[] = [];
-    const maxLines = Math.max(...linesArr.map(a => a.length));
+    const CHUNK_CAP =
+      Math.floor((pageH - TOP_MARGIN - BOTTOM_MARGIN) / lineGap) - 2;
 
-    for (let i = 0; i < maxLines; i++) {
-      rows.push({
-        productName: i === 0 ? (linesArr[0][0] || "") : "",
-        subscriptionTime: linesArr[1][i] || "",
-        dataDeadline: linesArr[2][i] || "",
-        subscriptionAmount: linesArr[3][i] || "",
-        marketValue: linesArr[4][i] || "",
-        totalAfterDeduction: i === 0 ? (linesArr[5][0] || "") : "",
-        estimatedProfit: i === 0 ? r.estimatedProfit : "",
+    const chunks: typeof r[] = [];
+    let offset = 0;
+
+    while (true) {
+      const remaining = Math.max(...cols.map((c) => c.length)) - offset;
+      if (remaining <= 0) break;
+
+      const take = Math.min(remaining, CHUNK_CAP);
+
+      chunks.push({
+        // productName: offset === 0 ? cols[0][0] : "",
+        productName: cols[0][0],
+        subscriptionTime: cols[1].slice(offset, offset + take).join("\n"),
+        dataDeadline: cols[2].slice(offset, offset + take).join("\n"),
+        subscriptionAmount: cols[3].slice(offset, offset + take).join("\n"),
+        marketValue: cols[4].slice(offset, offset + take).join("\n"),
+        totalAfterDeduction: offset === 0 ? cols[5][0] : "",
+        estimatedProfit: offset === 0 ? r.estimatedProfit : "",
       });
+
+      offset += take;
     }
-    return rows;
+    return chunks;
   }
+
 
   /* ---- switch back to Helvetica for the rest ------------------- */
   doc.setFont("ZhengTiFan", "normal").setTextColor(0);
 
-  /* ---------- body rows ----------------------------------------- */
-  const flatRows = data.tableData.flatMap(explodeMultiLineRow);
-  for (const [idx, row] of flatRows.entries()) {
-    // for (const [idx, row] of data.tableData.entries()) {
-    const cells = [
-      row.productName,
-      row.subscriptionTime.split("\n").map(fmtYYYYMM).join("\n"),
-      row.dataDeadline.split("\n").map(fmtYYYYMM).join("\n"),
-      fmtMoneyLines(row.subscriptionAmount), // row.subscriptionAmount,
-      fmtMoneyLines(row.marketValue),  // row.marketValue,
-      fmtMoneyLines(row.totalAfterDeduction.split("\n").map(to2dp).join("\n")),
-      row.estimatedProfit
-    ];
+    /* ---------- body rows ----------------------------------------- */
+    let zebra = 0;                      // keeps striping correct across pages
 
-    /* wrap text */
-    const wrapped = cells.map((cell, i) =>
-      doc.splitTextToSize(
-        i === 0 ? cell.replace(/(.{1,20})/g, "$1\n") : cell,
-        colW[i] - 4
-      ) as string[]
-    );
+    for (const logical of data.tableData) {
+      const flatRows = splitIntoChunks(logical);
 
-    const rowH = Math.max(...wrapped.map(w => w.length)) * lineGap + 4;
+      for (const row of flatRows) {
+        const cells = [
+          row.productName,
+          row.subscriptionTime,
+          row.dataDeadline,
+          fmtMoneyLines(row.subscriptionAmount),
+          fmtMoneyLines(row.marketValue),
+          fmtMoneyLines(
+            row.totalAfterDeduction.split("\n").map(to2dp).join("\n")
+          ),
+          row.estimatedProfit,
+        ];
 
-    /* --- page break? ------------------------------------------- */
-    if (y + rowH > pageH - BOTTOM_MARGIN) {
-      y = startNewTablePage();                 // reset y under header
-    }
-    /* background stripe */
-    // const bg = idx % 2 ? 0xd9 : 0xe8;
-    const bg = idx % 2 ? [217, 217, 217] : [232, 232, 232];
-    colW.forEach((w, i) => doc.setFillColor(bg[0], bg[1], bg[2]).rect(colX[i], y, w, rowH, "F"));
+        const wrapped = cells.map((txt, i) =>
+          doc.splitTextToSize(
+            i === 0 ? txt.replace(/(.{1,20})/g, "$1\n") : txt,
+            colW[i] - 4
+          )
+        ) as string[][];
 
+        const rowH =
+          Math.max(...wrapped.map((w) => w.length)) * lineGap + 4;
 
-    /* write the cells */
-    wrapped.forEach((lines, colIdx) => {
-      // const cellX = colX[colIdx];                 // ← use pre-computed x
-      const cx = colX[colIdx] + colW[colIdx] / 2;
-      lines.forEach((ln, li) => {
-        if (colIdx === 6) {                       // profit-% colouring
-          const t = ln.trimStart();
-          doc.setTextColor(
-            t.startsWith("+") ? 0 : t.startsWith("-") ? 192 : 0,
-            t.startsWith("+") ? 192 : t.startsWith("-") ? 0 : 0,
-            0
-          );
-        } else {
-          doc.setTextColor(0);
+        if (y + rowH > pageH - BOTTOM_MARGIN) {
+          y = startNewTablePage();
         }
-        doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
-      });
-    });
 
-    y += rowH + TABLE_GAP;
-  }
+        const bg = zebra % 2 ? [217, 217, 217] : [232, 232, 232];
+        colW.forEach((w, i) =>
+          doc.setFillColor(bg[0], bg[1], bg[2]).rect(colX[i], y, w, rowH, "F")
+        );
 
-  /* ---------- footer -------------------------------------------- */
-  // doc.setFont("ZhengTiFan", "normal").setFontSize(12).setTextColor(0);
-  // doc.text(
-  //   "存續報告僅供內部參考使用 投資人實際數字以月結單為准",
-  //   30, pageH - 20
-  // );
+        wrapped.forEach((lines, colIdx) => {
+          const cx = colX[colIdx] + colW[colIdx] / 2;
+          lines.forEach((ln, li) => {
+            const v = ln.trim();
+
+            if (colIdx === 6) {
+              if (/^-/.test(v)) {                          // negative
+                doc.setTextColor(192, 0, 0);               // red
+              } else if (/^\d|^\+/.test(v)) {              // 0 or positive
+                doc.setTextColor(0, 192, 0);               // green
+              } else {                                     // “NA” …
+                doc.setTextColor(0, 0, 0);                 // black
+              }
+            } else {
+              doc.setTextColor(0);
+            }
+            doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
+          });
+        });
+
+        y += rowH + TABLE_GAP;
+        zebra++;
+      }
+    }
+
 
   /* ============ Page 3 – Disclaimer ============================== */
   doc.addPage();
