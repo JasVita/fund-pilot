@@ -7,17 +7,17 @@ import type { TableRowData } from "@/components/pdfGenerator/InvestmentTable";
 
 interface Props {
   defaultInvestor: string;
-  defaultTableData: TableRowData[];
+  // defaultTableData: TableRowData[];
 }
 
 /** A one-click “Download report” button (no pop-up). */
 const ReportGeneratorDialog = ({
   defaultInvestor,
-  defaultTableData,
+  // defaultTableData,
 }: Props) => {
   const { isGenerating, handleGenerateReport } = useReportGenerator({
     defaultInvestor,
-    defaultTableData,
+    // defaultTableData,
   });
 
   return (

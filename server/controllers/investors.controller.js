@@ -9,47 +9,93 @@ const { pool } = require("../config/db");
  * • Response: { page, pageCount, rows:[…≤20] }
  * ------------------------------------------------------------------ */
 exports.portfolioOverview = async (req, res) => {
-  const LIMIT = 20;
-  const page  = Math.max(1, parseInt(req.query.page ?? "1", 10));
+  /* ----------------------------------------------------------------
+   * • NO server-side pagination any more – just return the whole set
+   * • The page/pageCount fields are kept (always 1) for compatibility
+   * ---------------------------------------------------------------- */
   const fundId = req.query.fund_id ? Number(req.query.fund_id) : null;
-  // const lo    = (page - 1) * LIMIT + 1;
-  // const hi    = page * LIMIT;
-  const offset = (page - 1) * LIMIT;
 
-  try { 
-    /* --------------------------------------------------------------
-       ① how many rows in the overview for this fund?
-    -------------------------------------------------------------- */
-    const { rows: [{ total }] } = await pool.query(
-      `SELECT COUNT(*)::int AS total
-         FROM investor_portfolio_overview($1);`,
-      [fundId] 
-    );
-    const pageCount = Math.max(1, Math.ceil(total / LIMIT));
-
-    /* --------------------------------------------------------------
-       ② grab the slice for this page (function already pre-orders) investor_display       AS investor, unpaid_redeem_display  AS unpaid_redeem,   
-    -------------------------------------------------------------- */
-    const sliceSql = `
+  try {
+    /* ① pull the full overview list -------------------------------- */
+    const fullSql = `
       SELECT
-          investor_display       AS investor,   
+          investor,
           class,
           number_held,
           current_nav,
-          unpaid_redeem_display  AS unpaid_redeem,
-          status_display         AS status
-        FROM investor_portfolio_overview($1)
-       OFFSET $2
-       LIMIT  $3;`;
+          unpaid_redeem_display AS unpaid_redeem,
+          status_display        AS status
+        FROM investor_portfolio_overview($1);`;
 
-    const { rows } = await pool.query(sliceSql, [fundId, offset, LIMIT]);
-    res.json({ page, pageCount, rows });
+    const { rows } = await pool.query(fullSql, [fundId]);
+
+    /* ② respond ---------------------------------------------------- */
+    res.json({
+      page      : 1,         // ← no pagination any more
+      pageCount : 1,
+      rows,                  // ← entire data set
+    });
 
   } catch (err) {
     console.error("portfolioOverview:", err);
     res.status(500).json({ error: err.message });
   }
 };
+
+// exports.portfolioOverview = async (req, res) => {
+//   const LIMIT = 20;
+//   const page  = Math.max(1, parseInt(req.query.page ?? "1", 10));
+//   const fundId = req.query.fund_id ? Number(req.query.fund_id) : null;
+//   // const lo    = (page - 1) * LIMIT + 1;
+//   // const hi    = page * LIMIT;
+//   const offset = (page - 1) * LIMIT;
+
+//   try { 
+//     /* --------------------------------------------------------------
+//        ① how many rows in the overview for this fund?
+//     -------------------------------------------------------------- */
+//     const { rows: [{ total }] } = await pool.query(
+//       `SELECT COUNT(*)::int AS total
+//          FROM investor_portfolio_overview($1);`,
+//       [fundId] 
+//     );
+//     const pageCount = Math.max(1, Math.ceil(total / LIMIT));
+
+//     /* --------------------------------------------------------------
+//        ② grab the slice for this page (function already pre-orders) investor_display       AS investor, unpaid_redeem_display  AS unpaid_redeem,   
+//     -------------------------------------------------------------- */
+//     const sliceSql = `
+//       SELECT
+//           investor,   
+//           class,
+//           number_held,
+//           current_nav,
+//           unpaid_redeem_display  AS unpaid_redeem,
+//           status_display         AS status
+//         FROM investor_portfolio_overview($1)
+//        OFFSET $2
+//        LIMIT  $3;`;
+
+//       // const sliceSql = `
+//       //   SELECT
+//       //       investor_display       AS investor,   
+//       //       class,
+//       //       number_held,
+//       //       current_nav,
+//       //       unpaid_redeem_display  AS unpaid_redeem,
+//       //       status_display         AS status
+//       //     FROM investor_portfolio_overview($1)
+//       //    OFFSET $2
+//       //    LIMIT  $3;`;
+
+//     const { rows } = await pool.query(sliceSql, [fundId, offset, LIMIT]);
+//     res.json({ page, pageCount, rows });
+
+//   } catch (err) {
+//     console.error("portfolioOverview:", err);
+//     res.status(500).json({ error: err.message });
+//   }
+// };
 
 /* ------------------------------------------------------------------ *
  * GET /investors/holdings?investor=A&fund_id=K
@@ -146,6 +192,55 @@ exports.investorDividends = async (req, res) => {
 
   } catch (err) {
     console.error("investorDividends:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+ /* ────────────────────────────────────────────────────────────────── *
+ * GET /investors/subscriptions?investor=NAME
+ *   – one record per (fund × subscription-line) that has data
+ *   – fund_id is **NOT** returned in the JSON
+ *   – Response: { investor, rows:[ … ] }
+ * ────────────────────────────────────────────────────────────────── */
+exports.investorReport = async (req, res) => {
+  const investor = (req.query.investor ?? '').trim();
+
+  if (!investor) {
+    return res.status(400).json({ error: '?investor= is required' });
+  }
+
+  try {
+    /*   Instead of reading from a `funds` table we iterate over a   *
+     *   fixed list of fund_id-s (1,2,3,4) and call the PL/pgSQL     *
+     *   helper for each.  We discard the fund_id in the SELECT.     */
+    const sql = `
+      SELECT
+          r.name,
+          r.sub_date,
+          r.data_cutoff,
+          r.subscribed,
+          r.market_value,
+          r.total_after_int,
+          r.pnl_pct
+        FROM  unnest(ARRAY[1,2,3,4]) AS f(fund_id)
+        CROSS JOIN LATERAL investor_subscription_report(f.fund_id, $1::text) AS r
+        WHERE  COALESCE(r.sub_date,
+                        r.data_cutoff,
+                        r.subscribed,
+                        r.market_value) IS NOT NULL
+        ORDER  BY f.fund_id,                       -- keep fund order
+                  r.sub_date;                      --   then by date
+    `;
+
+    const { rows } = await pool.query(sql, [investor]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'No subscription data for that investor' });
+    }
+
+    res.json({ investor, rows });  // ← fund_id is *not* included
+  } catch (err) {
+    console.error('investorReport:', err);
     res.status(500).json({ error: err.message });
   }
 };

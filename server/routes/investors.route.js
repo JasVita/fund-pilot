@@ -3,17 +3,19 @@ const requireAuth   = require("../middlewares/requireAuth");
 const requireRole  = require("../middlewares/requireRole");
 const requireAdmin  = require("../middlewares/requireAdmin"); 
 const requireSuper  = require("../middlewares/requireSuper"); 
-const { portfolioOverview, investorHoldings, listInvestors, investorAllFunds, investorDividends } = require("../controllers/investors.controller");
+const { portfolioOverview, investorHoldings, listInvestors, investorAllFunds, investorDividends, investorReport } = require("../controllers/investors.controller");
 
 const router = express.Router();
 
 /* ------------------------------------------------------------------ *
  * Everyone who is logged-in (user / admin / super) can hit these
+
  * ------------------------------------------------------------------ */
 router.get("/investors/portfolio",  requireAuth, requireRole, portfolioOverview);
 router.get("/investors/holdings",   requireAuth, requireRole, investorHoldings);
 router.get("/investors/holdings/all-funds",   requireAuth, requireRole, investorAllFunds);
 router.get("/investors/holdings/dividends",   requireAuth, requireRole, investorDividends);
+router.get("/investors/report",        requireAuth, requireRole, investorReport);
 
 /* ------------------------------------------------------------------ *
  * Company-aware list (controller already filters by company_id)
