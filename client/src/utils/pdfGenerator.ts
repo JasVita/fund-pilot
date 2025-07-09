@@ -27,7 +27,7 @@ async function fetchAsDataURL(path: string, key: string): Promise<string> {
   const blob = await fetch(path).then(r => r.blob());
   const dataUrl: string = await new Promise((ok, err) => {
     const fr = new FileReader();
-    fr.onload  = () => ok(fr.result as string);
+    fr.onload = () => ok(fr.result as string);
     fr.onerror = err;
     fr.readAsDataURL(blob);
   });
@@ -35,16 +35,15 @@ async function fetchAsDataURL(path: string, key: string): Promise<string> {
 }
 
 /* ---------- helpers for static images ---------------------------- */
-const getCoverImg        = () => fetchAsDataURL("/cover-bg.png",             "cover");
-const getLogoCoverImg    = () => fetchAsDataURL("/logo-white-cover.png",     "logoCover");
-const getLogoTableBlack  = () => fetchAsDataURL("/logo-black-table.png",     "logoTableBlk");
-const getLogoDisclaimer  = () => fetchAsDataURL("/logo-white-disclaimer.png","logoDisc");
+const getCoverImg = () => fetchAsDataURL("/cover-bg.png", "cover");
+const getLogoCoverImg = () => fetchAsDataURL("/logo-white-cover.png", "logoCover");
+const getLogoTableBlack = () => fetchAsDataURL("/logo-black-table.png", "logoTableBlk");
+const getLogoDisclaimer = () => fetchAsDataURL("/logo-white-disclaimer.png", "logoDisc");
 
 /* ---------- helpers for numbers / dates -------------------------- */
 const fmtYYYYMM = (s: string) => {
   const d = new Date(s);
-  return isNaN(d.getTime()) ? s
-         : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return isNaN(d.getTime()) ? s : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 const to2dp = (s: string) => {
   const n = Number(s.replace(/,/g, ""));
@@ -52,15 +51,12 @@ const to2dp = (s: string) => {
 };
 
 /* ————— initials from full name ————— */
-const initials = (full: string) =>
-  full.trim().split(/\s+/).map(w => w[0].toUpperCase()).join("");
+const initials = (full: string) => full.trim().split(/\s+/).map(w => w[0].toUpperCase()).join("");
 
 /* ————— 1-comma-per-thousand, 2 dp ————— */
 const fmtMoney = (v: string) => {
   const n = Number(String(v).replace(/,/g, ""));
-  return isNaN(n)
-    ? v
-    : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return isNaN(n) ? v : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 /* a helper for multiline cells (split on \n) */
@@ -90,8 +86,22 @@ export async function generateInvestmentReport(data: ReportData) {
   /* ---------- page geometry (A4 landscape) ----------------------- */
   const pageH = 210;                       // mm
   const pageW = (4000 / 2259) * pageH;     // ≈ 372 mm
-  const doc   = new jsPDF({ orientation: "landscape",
-                            unit: "mm", format: [pageW, pageH] });
+
+  /* printable area */
+  const TOP_MARGIN = 55;   // first table header sits here
+  const BOTTOM_MARGIN = 25;   // keep footer area clear
+  const TABLE_GAP = 0.5;
+
+  const colW = [73, 32, 32, 41, 41, 41, 50];
+  const headerH = 25;
+  const lineGap = 6;
+  const colX: number[] = [];
+  const tableX = 30;
+  let cursor = tableX;
+  colW.forEach(w => { colX.push(cursor); cursor += w + TABLE_GAP; });
+  const tableW = cursor - tableX - TABLE_GAP;   // effective width
+
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: [pageW, pageH] });
 
   await ensureZhengTiFan(doc);
 
@@ -99,90 +109,127 @@ export async function generateInvestmentReport(data: ReportData) {
     getCoverImg(), getLogoCoverImg(), getLogoDisclaimer(), getLogoTableBlack(),
   ]);
 
+  /* ==============================================================
+     helper: draw table header – returns y under header row
+  =================================================================*/
+  function drawTableHeader(startY: number): number {
+    // grey rectangles
+    colW.forEach((w, i) =>
+      doc.setFillColor(208, 206, 206).rect(colX[i], startY, w, headerH, "F")
+    );
+    // header titles
+    doc.setFont("ZhengTiFan").setFontSize(14).setTextColor(0);
+    const headers = [
+      "產品名稱\n(開放式基金)", "認購時間", "數據截止",
+      "認購金額\n(USD)", "市值", "含息後總額", "估派息後盈虧(%)"
+    ];
+    headers.forEach((h, i) => {
+      doc.text(
+        h,
+        colX[i] + colW[i] / 2,
+        startY + headerH / 2,
+        { align: "center", baseline: "middle" }
+      );
+    });
+    return startY + headerH + TABLE_GAP;
+  }
+
+  /* ------ helper: start a new “page-2 style” table page --------- */
+  // function startNewTablePage(): number {
+  //   doc.addPage();
+  //   doc.addImage(logoTableBlk, "PNG", 280, 12, 70, 29.6);
+  //   doc.setFont("ZhengTiFan").setFontSize(28).text("已投資產品總結", 30, 40);
+  //   return drawTableHeader(TOP_MARGIN);
+  // }
+  /* ------------ footer: reusable on every table-page ------------ */
+  function drawFooter() {
+    doc.setFont("ZhengTiFan").setFontSize(12).setTextColor(0);
+    doc.text(
+      "存續報告僅供內部參考使用 投資人實際數字以月結單為准",
+      30,
+      pageH - 20
+    );
+  }
+  
+  /* ------ helper: start a new “page-2 style” table page ---------- */
+  function startNewTablePage(): number {
+    doc.addPage();
+    doc.addImage(logoTableBlk, "PNG", 280, 12, 70, 29.6);
+    doc.setFont("ZhengTiFan").setFontSize(28).text("已投資產品總結", 30, 40);
+    drawFooter();                     // 👈  add the footer right away
+    return drawTableHeader(TOP_MARGIN);
+  }
+
   /* ============ Page 1 – Cover ================================== */
-  doc.addImage(bg,    "PNG", 0, 0, pageW, pageH);
+  doc.addImage(bg, "PNG", 0, 0, pageW, pageH);
   doc.addImage(logoCover, "PNG", 20.4, 16.4, 129.2, 45.8);
 
   // ${data.investor}存續報告
   doc.setFont("helvetica", "bold").setFontSize(26).setTextColor(255);
-  const investorW   = doc.getTextWidth(nameInitials);
+  const investorW = doc.getTextWidth(nameInitials);
 
   doc.setFont("ZhengTiFan", "normal").setFontSize(26).setTextColor(255);
-  const reportLabel = " 存續報告"; 
-  const labelW      = doc.getTextWidth(reportLabel);
+  const reportLabel = " 存續報告";
+  const labelW = doc.getTextWidth(reportLabel);
 
   /* centre the *combined* string by drawing two slices               */
-  const titleY  = pageH / 2 - 20;
-  const titleX  = (pageW - (investorW + labelW)) / 2;
+  const titleY = pageH / 2 - 20;
+  const titleX = (pageW - (investorW + labelW)) / 2;
 
   doc.setFont("helvetica", "bold").text(nameInitials, titleX, titleY);
   doc.setFont("ZhengTiFan", "normal").text(reportLabel, titleX + investorW, titleY);
-  
+
   // ${data.reportDate}
   doc.setFont("helvetica", "normal").setFontSize(16).setTextColor(255);
   doc.text(data.reportDate, (pageW - doc.getTextWidth(data.reportDate)) / 2, pageH / 2 + 10);
-  
+
   doc.setFont("ZhengTiFan", "normal").setFontSize(16).setTextColor(255);
   const subtitle = "表格為計算數位，實際數位以正式報告為主";
   doc.text(subtitle, (pageW - doc.getTextWidth(subtitle)) / 2, pageH / 2 + 30);
 
   /* ============ Page 2 – Table ================================== */
-  doc.addPage();
-  // doc.addImage(bg, "PNG", 0, 0, pageW, pageH);
-  doc.addImage(logoTableBlk, "PNG", 280, 12, 70, 29.6);
+  let y = startNewTablePage();
 
-  doc.setFont("ZhengTiFan", "normal").setFontSize(28).setTextColor(0); // black
-  doc.text("已投資產品總結", 30, 40);
+  /* -------------------------------------------------------------- *
+  * explodeMultiLineRow(): turn 1 logical row into N 1-line rows   *
+  * -------------------------------------------------------------- */
+  function explodeMultiLineRow(r: ReportData["tableData"][number]) {
+    const split = (s: string) => s.split("\n");
+    const linesArr = [
+      split(r.productName),               // 0
+      split(r.subscriptionTime).map(fmtYYYYMM),
+      split(r.dataDeadline).map(fmtYYYYMM),
+      split(fmtMoneyLines(r.subscriptionAmount)),
+      split(fmtMoneyLines(r.marketValue)),
+      split(fmtMoneyLines(
+        r.totalAfterDeduction.split("\n").map(to2dp).join("\n"))),
+      [r.estimatedProfit],                // single value
+    ];
 
-  /* table geometry */
-  const TABLE_GAP  = 0.5; 
-  const tableX  = 30;
-  // const tableW  = 310;
-  const colW    = [73, 32, 32, 41, 41, 41, 50];
-  const headerH = 25;
-  const lineGap = 6;
-  const colX: number[] = [];
-  let   cursor = tableX;
-  colW.forEach(w => {
-    colX.push(cursor);
-    cursor += w + TABLE_GAP;
-  });
+    const rows: typeof r[] = [];
+    const maxLines = Math.max(...linesArr.map(a => a.length));
 
-  const tableW = cursor - tableX - TABLE_GAP;   // effective width
-
-  
-  /* ---------- header row (ZhengTiFan only here) ---------------------- */
-  let y = 55;
-  
-  // doc.setFillColor(208, 206, 206).rect(tableX, y, tableW, headerH, "F");
-  
-  colW.forEach((w, i) => {
-    doc.setFillColor(208, 206, 206).rect(colX[i], y, w, headerH, "F");  
-  });
-  doc.setFont("ZhengTiFan", "normal").setFontSize(14).setTextColor(0); // black
-
-  const headers = [
-    "產品名稱\n(開放式基金)",
-    "認購時間",
-    "數據截止",
-    "認購金額\n(USD)",
-    "市值",
-    "含息後總額",
-    "估派息後盈虧(%)"
-  ];
-  // let x = tableX;
-  headers.forEach((h, i) => {
-    const cx = colX[i] + colW[i] / 2;  
-    // doc.text(h, colX[i] + 3, y + 10);        // +3 mm left-padding
-    doc.text(h, cx, y + headerH / 2, { align: "center", baseline: "middle" });
-  });
-  y += headerH + TABLE_GAP;  
+    for (let i = 0; i < maxLines; i++) {
+      rows.push({
+        productName: i === 0 ? (linesArr[0][0] || "") : "",
+        subscriptionTime: linesArr[1][i] || "",
+        dataDeadline: linesArr[2][i] || "",
+        subscriptionAmount: linesArr[3][i] || "",
+        marketValue: linesArr[4][i] || "",
+        totalAfterDeduction: i === 0 ? (linesArr[5][0] || "") : "",
+        estimatedProfit: i === 0 ? r.estimatedProfit : "",
+      });
+    }
+    return rows;
+  }
 
   /* ---- switch back to Helvetica for the rest ------------------- */
   doc.setFont("ZhengTiFan", "normal").setTextColor(0);
 
   /* ---------- body rows ----------------------------------------- */
-  for (const [idx, row] of data.tableData.entries()) {
+  const flatRows = data.tableData.flatMap(explodeMultiLineRow);
+  for (const [idx, row] of flatRows.entries()) {
+    // for (const [idx, row] of data.tableData.entries()) {
     const cells = [
       row.productName,
       row.subscriptionTime.split("\n").map(fmtYYYYMM).join("\n"),
@@ -203,30 +250,32 @@ export async function generateInvestmentReport(data: ReportData) {
 
     const rowH = Math.max(...wrapped.map(w => w.length)) * lineGap + 4;
 
-    /* background stripe per column (so the 1 mm gaps stay blank) */
+    /* --- page break? ------------------------------------------- */
+    if (y + rowH > pageH - BOTTOM_MARGIN) {
+      y = startNewTablePage();                 // reset y under header
+    }
+    /* background stripe */
+    // const bg = idx % 2 ? 0xd9 : 0xe8;
     const bg = idx % 2 ? [217, 217, 217] : [232, 232, 232];
-    colW.forEach((w, i) =>
-      doc.setFillColor(bg[0], bg[1], bg[2]).rect(colX[i], y, w, rowH, "F")
-    );
+    colW.forEach((w, i) => doc.setFillColor(bg[0], bg[1], bg[2]).rect(colX[i], y, w, rowH, "F"));
+
 
     /* write the cells */
     wrapped.forEach((lines, colIdx) => {
       // const cellX = colX[colIdx];                 // ← use pre-computed x
-      const cx   = colX[colIdx] + colW[colIdx] / 2; 
+      const cx = colX[colIdx] + colW[colIdx] / 2;
       lines.forEach((ln, li) => {
         if (colIdx === 6) {                       // profit-% colouring
           const t = ln.trimStart();
           doc.setTextColor(
-            t.startsWith("+") ? 0   : t.startsWith("-") ? 192 : 0,
-            t.startsWith("+") ? 192 : t.startsWith("-") ? 0   : 0,
+            t.startsWith("+") ? 0 : t.startsWith("-") ? 192 : 0,
+            t.startsWith("+") ? 192 : t.startsWith("-") ? 0 : 0,
             0
           );
         } else {
           doc.setTextColor(0);
         }
-        // doc.text(ln, cellX + 3, y + 8 + li * lineGap);
-        const lineY = y + 8 + li * lineGap;  
-        doc.text(ln, cx, lineY, { align: "center" });
+        doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
       });
     });
 
@@ -234,11 +283,11 @@ export async function generateInvestmentReport(data: ReportData) {
   }
 
   /* ---------- footer -------------------------------------------- */
-  doc.setFont("ZhengTiFan", "normal").setFontSize(12).setTextColor(0);
-  doc.text(
-    "存續報告僅供內部參考使用 投資人實際數字以月結單為准",
-    30, pageH - 20
-  );
+  // doc.setFont("ZhengTiFan", "normal").setFontSize(12).setTextColor(0);
+  // doc.text(
+  //   "存續報告僅供內部參考使用 投資人實際數字以月結單為准",
+  //   30, pageH - 20
+  // );
 
   /* ============ Page 3 – Disclaimer ============================== */
   doc.addPage();

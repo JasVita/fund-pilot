@@ -5,7 +5,6 @@ import { X, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext, PaginationLink } from "@/components/ui/pagination";
 import InvestorPortfolioCard from "./InvestorPortfolioCard";
 import type { Investor } from "./InvestorPortfolioTable";
 
