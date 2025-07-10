@@ -189,7 +189,8 @@ export async function generateInvestmentReport(data: ReportData) {
 
   // ${data.investor}存續報告
   doc.setFont("helvetica", "bold").setFontSize(26).setTextColor(255);
-  const investorW = doc.getTextWidth(nameInitials);
+  
+  const investorW = doc.getTextWidth(data.investor);
 
   doc.setFont("ZhengTiFan", "normal").setFontSize(26).setTextColor(255);
   const reportLabel = " 存續報告";
@@ -199,7 +200,7 @@ export async function generateInvestmentReport(data: ReportData) {
   const titleY = pageH / 2 - 20;
   const titleX = (pageW - (investorW + labelW)) / 2;
 
-  doc.setFont("helvetica", "bold").text(nameInitials, titleX, titleY);
+  doc.setFont("helvetica", "bold").text(data.investor, titleX, titleY);
   doc.setFont("ZhengTiFan", "normal").text(reportLabel, titleX + investorW, titleY);
 
   // ${data.reportDate}
@@ -342,6 +343,7 @@ export async function generateInvestmentReport(data: ReportData) {
     "Disclaimer: This document is confidential and is intended solely for its recipient(s) only. Any unauthorized use of the contents is expressly prohibited. If you are not the intended recipient, you are hereby notified that any use, distribution, disclosure, dissemination or copying of this document is strictly prohibited. Annum Capital, its group companies, subsidiaries and affiliates and their content provider(s) shall not be responsible for the accuracy or completeness of this document or information herein. This document is for information purpose only. It is not intended as an offer or solicitation for the purchase or sale of any financial instrument or as an official confirmation of any transaction. All data and other information are not warranted as to completeness or accuracy and subject to change without notice. Liabilities for any damaged caused by this document will not be accepted.";
   doc.text(doc.splitTextToSize(disclaimer, 227.2), 53.3, 71.7);
 
+  const investorSlug = data.investor.trim().replace(/\s+/g, "_");  // "Che Xiao" → "Che_Xiao"
   const yyyymm = data.reportDate.substring(0, 7).replace("-", "");  // "2025-06-17" → "202506"
-  doc.save(`${nameInitials}_存續報告_${yyyymm}.pdf`);
+  doc.save(`${investorSlug}_存續報告_${yyyymm}.pdf`);
 }
