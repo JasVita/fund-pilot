@@ -34,6 +34,18 @@ async function fetchAsDataURL(path: string, key: string): Promise<string> {
   return (anyFn[key] = dataUrl);
 }
 
+/* ---------- NEW: helper to get canonical investor name ----------- */
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
+
+async function fetchFormattedName(raw: string): Promise<string> {
+  const url = `${API_BASE}/investors/format-name?name=${encodeURIComponent(
+    raw.trim()
+  )}`;
+  const r = await fetch(url, { credentials: "include" });
+  if (!r.ok) throw new Error(`format-name fetch ${r.status}`);
+  return (await r.text()).trim();
+}
+
 /* ---------- helpers for static images ---------------------------- */
 const getCoverImg = () => fetchAsDataURL("/cover-bg.png", "cover");
 const getLogoCoverImg = () => fetchAsDataURL("/logo-white-cover.png", "logoCover");
@@ -111,7 +123,11 @@ function fmtProfitLines(val: string): string {
 }
 /* ---------- main builder ----------------------------------------- */
 export async function generateInvestmentReport(data: ReportData) {
-  const nameInitials = initials(data.investor);
+  // const nameInitials = initials(data.investor);
+  const canonicalName = await fetchFormattedName(data.investor);    // ← NEW
+  
+  const nameInitials  = initials(canonicalName);                    // ← CHANGED
+  console.log("[generateInvestmentReport] canonicalName →", canonicalName, "nameInitials →", nameInitials);
 
   /* ---------- page geometry (A4 landscape) ----------------------- */
   const pageH = 210;                       // mm
@@ -190,7 +206,8 @@ export async function generateInvestmentReport(data: ReportData) {
   // ${data.investor}存續報告
   doc.setFont("helvetica", "bold").setFontSize(26).setTextColor(255);
   
-  const investorW = doc.getTextWidth(data.investor);
+  // const investorW = doc.getTextWidth(data.investor);
+  const investorW = doc.getTextWidth(nameInitials); 
 
   doc.setFont("ZhengTiFan", "normal").setFontSize(26).setTextColor(255);
   const reportLabel = " 存續報告";
@@ -200,7 +217,7 @@ export async function generateInvestmentReport(data: ReportData) {
   const titleY = pageH / 2 - 20;
   const titleX = (pageW - (investorW + labelW)) / 2;
 
-  doc.setFont("helvetica", "bold").text(data.investor, titleX, titleY);
+  doc.setFont("helvetica", "bold").text(nameInitials, titleX, titleY);
   doc.setFont("ZhengTiFan", "normal").text(reportLabel, titleX + investorW, titleY);
 
   // ${data.reportDate}
@@ -343,7 +360,7 @@ export async function generateInvestmentReport(data: ReportData) {
     "Disclaimer: This document is confidential and is intended solely for its recipient(s) only. Any unauthorized use of the contents is expressly prohibited. If you are not the intended recipient, you are hereby notified that any use, distribution, disclosure, dissemination or copying of this document is strictly prohibited. Annum Capital, its group companies, subsidiaries and affiliates and their content provider(s) shall not be responsible for the accuracy or completeness of this document or information herein. This document is for information purpose only. It is not intended as an offer or solicitation for the purchase or sale of any financial instrument or as an official confirmation of any transaction. All data and other information are not warranted as to completeness or accuracy and subject to change without notice. Liabilities for any damaged caused by this document will not be accepted.";
   doc.text(doc.splitTextToSize(disclaimer, 227.2), 53.3, 71.7);
 
-  const investorSlug = data.investor.trim().replace(/\s+/g, "_");  // "Che Xiao" → "Che_Xiao"
-  const yyyymm = data.reportDate.substring(0, 7).replace("-", "");  // "2025-06-17" → "202506"
-  doc.save(`${investorSlug}_存續報告_${yyyymm}.pdf`);
+  const investorSlug = canonicalName.replace(/\s+/g, "_"); 
+  const yyyymm       = data.reportDate.substring(0, 7).replace("-", "");
+  doc.save(`${nameInitials}_存續報告_${yyyymm}.pdf`);
 }
