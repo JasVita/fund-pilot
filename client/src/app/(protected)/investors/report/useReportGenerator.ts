@@ -1,10 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
-import { generateInvestmentReport } from "@/utils/pdfGenerator";
+import { generateInvestmentReport } from "./pdfGenerator";
 import { toast } from "sonner";
+<<<<<<< HEAD:client/src/hooks/useReportGenerator.ts
 import type { TableRowData } from "@/components/pdfGenerator/InvestmentTable";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
+=======
+import type { TableRowData } from "../tables/InvestmentTable";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
+>>>>>>> dev:client/src/app/(protected)/investors/report/useReportGenerator.ts
 
 type Options = {
   defaultInvestor?: string;

@@ -2,8 +2,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
-import { useReportGenerator } from "@/hooks/useReportGenerator";
-import type { TableRowData } from "@/components/pdfGenerator/InvestmentTable";
+import { useReportGenerator } from "../report/useReportGenerator";
 
 interface Props {
   defaultInvestor: string;

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { X, Download } from "lucide-react";
+import { X, Search, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import InvestorPortfolioCard from "./InvestorPortfolioCard";
@@ -11,9 +12,7 @@ import type { Investor } from "./InvestorPortfolioTable";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// import type { TableRowData } from "@/components/pdfGenerator/InvestmentTable";
-import ReportGeneratorDialog from "@/components/pdfGenerator/ReportGeneratorDialog";
-
+import ReportGeneratorDialog from "./tables/ReportGeneratorDialog";
 /* ---- helpers ----------------------------------------------------- */
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
@@ -129,6 +128,8 @@ export default function InvestorsPage() {
   /* ① fund list + current filter --------------------- */
   const [funds, setFunds] = useState<Fund[]>([]);
   const [selectedFund, setSelectedFund] = useState<number | null>(null);
+
+  const [quickFilter, setQuickFilter] = useState("");
 
   /* ② table data & UI state --------------------------------------- */
   const [page, setPage] = useState(1);
@@ -294,38 +295,38 @@ export default function InvestorsPage() {
   const escClose = useCallback((e: KeyboardEvent) => { if (e.key === "Escape") setSelected(null); }, []);
   useEffect(() => { window.addEventListener("keydown", escClose); return () => window.removeEventListener("keydown", escClose); }, [escClose]);
 
-  /* >>> convert live holdings → TableRowData */
-  // const tableRowsForPdf: TableRowData[] = holdings.map((h) => ({
-  //   productName: h.name,
-  //   subscriptionTime: h.sub_date,          // already "YYYY-MM" list\n…
-  //   dataDeadline: h.data_cutoff,
-  //   subscriptionAmount: h.subscribed,
-  //   marketValue: h.market_value,
-  //   totalAfterDeduction:
-  //     h.total_after_int !== null ? h.total_after_int.toString() : "N/A",
-  //   estimatedProfit:
-  //     h.pnl_pct === "NA" ? "NA"
-  //       : `${Number(h.pnl_pct) > 0 ? "+" : ""}${h.pnl_pct}%`,
-  // }));
-
   /* -------------------------------------------------------------- */
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">Investors</h1>
 
       {/* FUND PICKER ------------------------------------------------ */}
-      <Select value={selectedFund !== null ? String(selectedFund) : ""} onValueChange={changeFund}>
-        <SelectTrigger className="w-96">
-          <SelectValue placeholder="Choose a fund" />
-        </SelectTrigger>
-        <SelectContent>
-          {funds.map(f => (
-            <SelectItem key={f.fund_id} value={String(f.fund_id)}>
-              {f.fund_name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="flex items-center gap-4">
+        <Select value={selectedFund !== null ? String(selectedFund) : ""} onValueChange={changeFund}>
+          <SelectTrigger className="w-96">
+            <SelectValue placeholder="Choose a fund" />
+          </SelectTrigger>
+          <SelectContent>
+            {funds.map(f => (
+              <SelectItem key={f.fund_id} value={String(f.fund_id)}>
+                {f.fund_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="relative ml-auto w-96">   
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4
+                       text-muted-foreground pointer-events-none"
+          />
+          <Input
+            placeholder="Search investors or class here…"
+            value={quickFilter}
+            onChange={e => setQuickFilter(e.target.value)}
+            className="pl-10"                          
+          />
+        </div>
+      </div>
 
       {/* ---------- MAIN LAYOUT ---------- */}
       {selected ? (
@@ -356,6 +357,7 @@ export default function InvestorsPage() {
               pageCount={pageCount}
               onPageChange={setPage}          // keeps paging state in parent
               onSelectRow={handleRowSelect}      // open the right-side drawer
+              quickFilter={quickFilter} 
             />
           </ResizablePanel>
 
@@ -581,6 +583,7 @@ export default function InvestorsPage() {
           pageCount={pageCount}
           onPageChange={setPage}
           onSelectRow={handleRowSelect}
+          quickFilter={quickFilter} 
         />
       )}
     </div>

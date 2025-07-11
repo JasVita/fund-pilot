@@ -1,5 +1,6 @@
 // server/controllers/investors.controller.js
 const { pool } = require("../config/db");
+const { formatName } = require("../utils/nameFormatter");
 
 /* ------------------------------------------------------------------ *
  * GET /investors/portfolio
@@ -79,6 +80,19 @@ exports.investorHoldings = async (req, res) => {
     });
   } catch (err) {
     console.error("investorHoldings:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.formatInvestorName = async (req, res) => {
+  const raw = (req.query.name || "").trim();
+  if (!raw) return res.status(400).json({ error: "?name= is required" });
+
+  try {
+    const formatted = await formatName(raw);
+    res.send(formatted);
+  } catch (err) {
+    console.error("formatInvestorName:", err);
     res.status(500).json({ error: err.message });
   }
 };
