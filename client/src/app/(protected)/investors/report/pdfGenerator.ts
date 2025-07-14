@@ -123,10 +123,9 @@ function fmtProfitLines(val: string): string {
 }
 /* ---------- main builder ----------------------------------------- */
 export async function generateInvestmentReport(data: ReportData) {
-  // const nameInitials = initials(data.investor);
-  const canonicalName = await fetchFormattedName(data.investor);    // ← NEW
+  const canonicalName = await fetchFormattedName(data.investor);    
   
-  const nameInitials  = initials(canonicalName);                    // ← CHANGED
+  const nameInitials  = initials(canonicalName);                   
   console.log("[generateInvestmentReport] canonicalName →", canonicalName, "nameInitials →", nameInitials);
 
   /* ---------- page geometry (A4 landscape) ----------------------- */

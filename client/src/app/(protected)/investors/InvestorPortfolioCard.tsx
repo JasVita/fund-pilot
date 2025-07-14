@@ -17,7 +17,7 @@ type Props = {
 };
 
 export default function InvestorPortfolioCard(props: Props) {
-  const [filter, setFilter] = useState("");
+  // const [filter, setFilter] = useState("");
 
     return (
     /* ⬇ plain <div> replaces the old <Card> wrapper */
@@ -41,7 +41,8 @@ export default function InvestorPortfolioCard(props: Props) {
       <div className="flex overflow-x-auto h-screen">
         <InvestorPortfolioTable
           {...props}
-          quickFilter={filter}   /* – pass down the current filter */
+          // quickFilter={filter}   /* – pass down the current filter */
+          quickFilter={props.quickFilter}
         />
       </div>
     </div>

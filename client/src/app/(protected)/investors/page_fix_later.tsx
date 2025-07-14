@@ -8,12 +8,12 @@ import { X } from 'lucide-react';
 import InvestorPortfolioCard from './InvestorPortfolioCard';
 import type { Investor } from './InvestorPortfolioTable';
 
-import HoldingsTable        from './HoldingsTable';
-import LatestHoldingsTable  from './LatestHoldingsTable';
+import HoldingsTable from './HoldingsTable';
+import LatestHoldingsTable from './LatestHoldingsTable';
 import DividendHistoryTable from './DividendHistoryTable';
-import type { Holding }        from './HoldingsTable';
-import type { LatestHolding }  from './LatestHoldingsTable';
-import type { DividendRow }    from './DividendHistoryTable';
+import type { Holding } from './HoldingsTable';
+import type { LatestHolding } from './LatestHoldingsTable';
+import type { DividendRow } from './DividendHistoryTable';
 
 import {
   ResizablePanelGroup,
@@ -23,7 +23,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import ReportGeneratorDialog from '@/components/pdfGenerator/ReportGeneratorDialog';
+import ReportGeneratorButton from '@/components/pdfGenerator/ReportGeneratorButton';
 import type { TableRowData } from '@/components/pdfGenerator/InvestmentTable';
 
 /* ---- helpers -------------------------------------------------- */
@@ -46,14 +46,14 @@ export default function InvestorsPage() {
   const [selected, setSelected] = useState<Investor | null>(null);
 
   /* ③ drawer-side data -------------------- */
-  const [holdings, setHoldings]        = useState<Holding[]>([]);
+  const [holdings, setHoldings] = useState<Holding[]>([]);
   const [loadingHoldings, setLoadHold] = useState(false);
 
-  const [latestHoldings, setLatest]       = useState<LatestHolding[]>([]);
-  const [loadingLatest, setLoadLatest]    = useState(false);
+  const [latestHoldings, setLatest] = useState<LatestHolding[]>([]);
+  const [loadingLatest, setLoadLatest] = useState(false);
 
-  const [divRows, setDivRows]          = useState<DividendRow[]>([]);
-  const [loadingDivs, setLoadDivs]     = useState(false);
+  const [divRows, setDivRows] = useState<DividendRow[]>([]);
+  const [loadingDivs, setLoadDivs] = useState(false);
 
   /* ----------------------------------------------------------------
      keep selected row in sync
@@ -78,8 +78,8 @@ export default function InvestorsPage() {
     (async () => {
       try {
         const url = `${API_BASE}/investors/portfolio?fund_id=${selectedFund}&page=${page}`;
-        const r   = await fetch(url, { credentials: 'include' });
-        const j   = (await r.json()) as { page: number; pageCount: number; rows: Investor[] };
+        const r = await fetch(url, { credentials: 'include' });
+        const j = (await r.json()) as { page: number; pageCount: number; rows: Investor[] };
         setRows(j.rows);
         setPageCount(j.pageCount);
       } catch (e) { console.error('portfolio fetch:', e); }
@@ -93,12 +93,12 @@ export default function InvestorsPage() {
       try {
         setLoadHold(true);
         const url = `${API_BASE}/investors/holdings?fund_id=${selectedFund}` +
-                    `&investor=${encodeURIComponent(selected.investor ?? '')}`;
-        const r   = await fetch(url, { credentials: 'include' });
-        const j   = (await r.json()) as { rows?: Holding[] };
+          `&investor=${encodeURIComponent(selected.investor ?? '')}`;
+        const r = await fetch(url, { credentials: 'include' });
+        const j = (await r.json()) as { rows?: Holding[] };
         setHoldings(Array.isArray(j.rows) ? j.rows : []);
       } catch (e) { console.error('holdings fetch:', e); }
-      finally     { setLoadHold(false); }
+      finally { setLoadHold(false); }
     })();
   }, [selectedFund, selected]);
 
@@ -109,11 +109,11 @@ export default function InvestorsPage() {
       try {
         setLoadLatest(true);
         const url = `${API_BASE}/investors/holdings/all-funds?investor=${encodeURIComponent(selected.investor ?? '')}`;
-        const r   = await fetch(url, { credentials: 'include' });
-        const j   = (await r.json()) as { rows?: LatestHolding[] };
+        const r = await fetch(url, { credentials: 'include' });
+        const j = (await r.json()) as { rows?: LatestHolding[] };
         setLatest(Array.isArray(j.rows) ? j.rows : []);
       } catch (e) { console.error('latest-holdings fetch:', e); }
-      finally     { setLoadLatest(false); }
+      finally { setLoadLatest(false); }
     })();
   }, [selected]);
 
@@ -124,11 +124,11 @@ export default function InvestorsPage() {
       try {
         setLoadDivs(true);
         const url = `${API_BASE}/investors/holdings/dividends?investor=${encodeURIComponent(selected.investor ?? '')}`;
-        const r   = await fetch(url, { credentials: 'include' });
-        const j   = (await r.json()) as { rows?: DividendRow[] };
+        const r = await fetch(url, { credentials: 'include' });
+        const j = (await r.json()) as { rows?: DividendRow[] };
         setDivRows(Array.isArray(j.rows) ? j.rows : []);
       } catch (e) { console.error('dividends fetch:', e); }
-      finally     { setLoadDivs(false); }
+      finally { setLoadDivs(false); }
     })();
   }, [selected]);
 
@@ -141,13 +141,13 @@ export default function InvestorsPage() {
 
   /* --- table rows for PDF ------------------------------------ */
   const tableRowsForPdf: TableRowData[] = holdings.map(h => ({
-    productName        : h.name,
-    subscriptionTime   : h.sub_date,
-    dataDeadline       : h.data_cutoff,
-    subscriptionAmount : h.subscribed,
-    marketValue        : h.market_value,
+    productName: h.name,
+    subscriptionTime: h.sub_date,
+    dataDeadline: h.data_cutoff,
+    subscriptionAmount: h.subscribed,
+    marketValue: h.market_value,
     totalAfterDeduction: h.total_after_int?.toString() ?? 'N/A',
-    estimatedProfit    : h.pnl_pct,
+    estimatedProfit: h.pnl_pct,
   }));
 
   /* ----------------------------------------------------------- */
@@ -222,7 +222,7 @@ export default function InvestorsPage() {
 
               {/* download button */}
               <div className="flex justify-center">
-                <ReportGeneratorDialog
+                <ReportGeneratorButton
                   defaultInvestor={selected.investor ?? ''}
                   defaultTableData={tableRowsForPdf}
                 />

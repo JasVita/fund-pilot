@@ -12,7 +12,8 @@ import type { Investor } from "./InvestorPortfolioTable";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import ReportGeneratorDialog from "./tables/ReportGeneratorDialog";
+import ReportGeneratorButton from "./tables/ReportGeneratorButton";
+import PPTGeneratorButton  from "./tables/PPTGeneratorButton";
 /* ---- helpers ----------------------------------------------------- */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
 
@@ -314,7 +315,7 @@ export default function InvestorsPage() {
           </SelectContent>
         </Select>
 
-        <div className="relative ml-auto w-96">   
+        <div className="relative ml-auto w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4
                        text-muted-foreground pointer-events-none"
           />
@@ -322,7 +323,7 @@ export default function InvestorsPage() {
             placeholder="Search investors or class here…"
             value={quickFilter}
             onChange={e => setQuickFilter(e.target.value)}
-            className="pl-10"                          
+            className="pl-10"
           />
         </div>
       </div>
@@ -356,7 +357,7 @@ export default function InvestorsPage() {
               pageCount={pageCount}
               onPageChange={setPage}          // keeps paging state in parent
               onSelectRow={handleRowSelect}      // open the right-side drawer
-              quickFilter={quickFilter} 
+              quickFilter={quickFilter}
             />
           </ResizablePanel>
 
@@ -450,12 +451,11 @@ export default function InvestorsPage() {
             </Card>
 
             {/* report-PDF button */}
-            <div className="flex justify-center pt-4">
-              {/* <ReportGeneratorDialog
-                defaultInvestor={selected.investor ?? ""}
-                defaultTableData={tableRowsForPdf}
-              /> */}
-              <ReportGeneratorDialog key={selected.investor} defaultInvestor={selected.investor ?? ""} />
+            <div className="flex flex-wrap gap-4 pt-4 justify-center ">
+              {/* PDF on the left  ─────────────────────────────────────────── */}
+              <ReportGeneratorButton key={selected.investor} defaultInvestor={selected.investor ?? ""} className="flex-1 sm:flex-none mx-auto max-w-[220px]o"/>
+              {/* PPT on the right ─────────────────────────────────────────── */}
+              <PPTGeneratorButton defaultInvestor={selected.investor ?? ""} className="flex-1 sm:flex-none mx-auto max-w-[220px]" />
             </div>
 
             {/* ── ❷ Latest-holdings-across-all-funds table ─────────────────── */}
@@ -582,7 +582,7 @@ export default function InvestorsPage() {
           pageCount={pageCount}
           onPageChange={setPage}
           onSelectRow={handleRowSelect}
-          quickFilter={quickFilter} 
+          quickFilter={quickFilter}
         />
       )}
     </div>
