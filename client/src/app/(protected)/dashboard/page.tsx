@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { KPICard } from "./KPICard";
+import GaugeRing from "./GaugeRing";
 import { Download, Filter, Calendar, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
 
 import { Line, Bar, Doughnut } from "react-chartjs-2";
@@ -85,6 +86,12 @@ export default function DashboardPage() {
   /* NAV vs. Dividend bar-chart */
   const [navRows        , setNavRows      ] = useState< { period:string; nav:string; dividend:string }[] >([]);
 
+  /* Unsettled-redemption cut-off dates */
+  // const [unsettledOpts , setUnsettledOpts]  = useState<string[]>([]);
+  const [unsettledOpts, setUnsettledOpts] = useState<string[]>([ "2026-01-15", "2025-10-20", "2025-09-18" ]);   
+  const [unsettledDate, setUnsettledDate]   = useState<string>("");   // ISO "YYYY-MM-DD"
+
+
   /* fetch funds once ------------------------------------------------ */
   useEffect(() => {
     (async () => {
@@ -127,20 +134,19 @@ export default function DashboardPage() {
         /* --- Unsettled redemptions --------------------------- */
         const urJson = await urRes.json();
         console.log("UR urJson:", urJson);
+
         if (Array.isArray(urJson)) {
           setRedempRows(urJson);
-          setRedempSum(urJson.reduce((acc:number,r:any)=>acc+Math.abs(+r.amount),0));
+          setRedempSum(
+            urJson.reduce((acc: number, r: any) => acc + Math.abs(+r.amount), 0)
+          );
+
+          if (!unsettledDate && unsettledOpts.length) {
+            setUnsettledDate(unsettledOpts[0]); // first mock date
+          }
         }
 
         /* --- NAV + Dividend rows ------------------------------ */
-        // setNavRows(await ndRes.json());
-        // const ndJson = await ndRes.json();
-
-        // if (Array.isArray(ndJson)) {
-        //   setNavRows(ndJson); 
-        // }
-
-        /* --- NAV vs Div -------------------------------------- */
         setNavRows(await ndRes.json());
 
         /* --- AUM rows ---------------------------------------- */
@@ -211,8 +217,14 @@ export default function DashboardPage() {
   const redempPct = latestCash && redempSum ? (redempSum / latestCash) * 100 : null;
   
   /* clamp to [0 , 100] for the chart – keep the raw value for the label */
-  const pctClamped  = redempPct != null ? Math.min(Math.max(redempPct, 0), 100) : 0;
   const pctLabel    = redempPct != null ? `${redempPct.toFixed(1)}%` : "—";
+
+  /* Outstanding Redemptions surplus helpers */
+  const surplus      = latestCash != null && redempSum != null ? latestCash - redempSum : null;
+  const surplusLabel = surplus != null && surplus < 0 ? "Deficit" : "Surplus";
+  const surplusClass = surplus != null && surplus < 0
+    ? "text-red-600 font-semibold"   // negative → bold red
+    : "text-green-600";              // positive → green
 
   /* ---------- dynamic gradient helper ----------------------- */
   const makeRedGradient = (ctx: any, darker = false) => {
@@ -231,24 +243,6 @@ export default function DashboardPage() {
     return grad;
   };
 
-  /* dataset slices ---------------------------------------------------- */
-  const gaugeData = {
-    labels: ["Outstanding", "Remaining"],
-    datasets: [
-      {
-        data: [pctClamped, 100 - pctClamped],
-        backgroundColor: (ctx: any) =>
-          ctx.parsed !== undefined && ctx.dataIndex === 0      // first slice
-            ? makeRedGradient(ctx, redempPct != null && redempPct > 100)
-            : "#e5e7eb",                                       // grey slice
-        hoverBackgroundColor: (ctx: any) =>
-          ctx.dataIndex === 0
-            ? makeRedGradient(ctx, true)
-            : "#e5e7eb",
-        borderWidth: 0,
-      },
-    ],
-  };
   /* -------- Top-5 redemption rows ----------------------------- */
   const top5Redemptions = useMemo(() => {
     if (!redempRows.length || !latestCash) return [];
@@ -334,18 +328,6 @@ export default function DashboardPage() {
             </SelectContent>
           </Select> */}
 
-          {/* <Select defaultValue="all">
-            <SelectTrigger className="w-48">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Annum Asia New Dividend Income Fund</SelectItem>
-              <SelectItem value="equity">Equity Fund</SelectItem>
-              <SelectItem value="bond">Bond Fund</SelectItem>
-              <SelectItem value="hybrid">Hybrid Fund</SelectItem>
-            </SelectContent>
-          </Select> */}
            {/* fund picker -------------------------------------------------- */}
             <Select value={fundId !== null ? String(fundId) : ""} onValueChange={(v) => setFundId(Number(v))} >
               <SelectTrigger className="w-64">
@@ -355,17 +337,11 @@ export default function DashboardPage() {
 
               <SelectContent>
                 {funds.map((f) => (
-                  <SelectItem key={f.fund_id} value={String(f.fund_id)}>
-                    {f.fund_name}
-                  </SelectItem>
+                  <SelectItem key={f.fund_id} value={String(f.fund_id)}>{f.fund_name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
         </div>
-        {/* <Button variant="outline" size="sm">
-          <Download className="w-4 h-4 mr-2" />
-          Export Report
-        </Button> */}
       </div>
 
       {/* KPI cards */}
@@ -374,14 +350,12 @@ export default function DashboardPage() {
         <KPICard title="Net Cash" value={monthValue}     change="" changeType="neutral" description="" icon={DollarSign}
                   right={
                       <Select value={monthFilter} onValueChange={setMonthFilter}>
-                        <SelectTrigger className="h-7 w-28 text-xs">
+                        <SelectTrigger className="h-7 w-36 text-xs">
                           <SelectValue placeholder="Month" />
                         </SelectTrigger>
                         <SelectContent>
                           {monthOptions.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
+                            <SelectItem key={m} value={m}>{m}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -390,20 +364,46 @@ export default function DashboardPage() {
         <KPICard title="AUM" value={aumValue} change="" changeType="positive" description="" icon={TrendingUp} 
                   right={
                       <Select value={aumSelected} onValueChange={setAumSelected}>
-                        <SelectTrigger className="h-7 w-28 text-xs">
+                        <SelectTrigger className="h-7 w-36 text-xs">
                           <SelectValue placeholder="Month" />
                         </SelectTrigger>
                         <SelectContent onScroll={handleAumScroll} className="max-h-60 overflow-y-auto">
                           {aumOptions.map((iso) => (
-                            <SelectItem key={iso} value={iso}>
-                              {monthYearLabel(iso)}
-                            </SelectItem>
+                            <SelectItem key={iso} value={iso}>{monthYearLabel(iso)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
           }/>
 
-        <KPICard title="Unsettled Redemptions" value={<span className="text-red-600">{redempValue}</span>} change={`${pendingCount} pending`} changeType="neutral" description="Awaiting settlement" icon={AlertTriangle} />
+        {/* Unsettled Redemptions card */}
+        <KPICard 
+          title="Unsettled Redemptions" 
+          value={<span className="text-red-600">{redempValue}</span>} 
+          change={`${pendingCount} pending`} 
+          changeType="neutral" 
+          description="Awaiting settlement" 
+          icon={AlertTriangle} 
+          /* ▼ new dropdown ---------------------------------------- */
+          right={
+            <Select value={unsettledDate} onValueChange={setUnsettledDate}>
+              <SelectTrigger className="h-7 w-40 text-xs">
+                <SelectValue placeholder="Date" />
+              </SelectTrigger>
+
+              <SelectContent>
+                {unsettledOpts.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {new Date(d).toLocaleDateString("en-US", {
+                      month: "long",
+                      day:   "numeric",
+                      year:  "numeric",
+                    })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+          />
       </div>
 
       {/* charts */}
@@ -491,83 +491,141 @@ export default function DashboardPage() {
       <Card>
         <CardHeader className="flex items-center justify-between">
           <CardTitle className="text-lg">Outstanding Redemptions</CardTitle>
-          <Badge variant="outline" className="text-destructive border-destructive">
+          {/* <Badge variant="outline" className="text-destructive border-destructive">
             {redempPct ? `${redempPct.toFixed(1)}% of Net Cash` : "—"}
-          </Badge>
+          </Badge> */}
         </CardHeader>
 
         <CardContent>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* gauge */}
-            <div className="flex flex-col items-center justify-center">
-              <div className="relative w-36 h-36">
-                <Doughnut
-                data={gaugeData}
-                options={{
-                  rotation: 0,
-                  cutout: "75%",
-                  plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                }}
-                  // data={{
-                  //   labels: ["Outstanding", "Remaining"],
-                  //   datasets: [
-                  //     {
-                  //       data: [redempPct ?? 0, redempPct != null ? 100 - redempPct : 100],
-                  //       backgroundColor: ["#ef4444", "#e5e7eb"],
-                  //       borderWidth: 0,
-                  //     },
-                  //   ],
-                  // }}
-                  // options={{
-                  //   rotation: 0,
-                  //   cutout: "75%",
-                  //   plugins: {
-                  //     legend: { display: false },
-                  //     tooltip: { enabled: false },
-                  //   },
-                  // }}
-                />
-                <span className={`absolute inset-0 flex items-center justify-center
-                 font-bold text-2xl
-                 ${redempPct != null && redempPct > 100 ? "text-red-700" : "text-destructive"}`}>
-                  {/* {redempPct ? `${redempPct.toFixed(1)}%` : "—"} */}
-                  {pctLabel}
+        {/*  1 col on mobile, 3 cols on lg – left part is new  */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+          {/* ──────────────  LEFT : analysis + gauge  ───────────── */}
+          <div className="space-y-4">
+            {/* analysis date (closest *future* cut-off) */}
+            <p className="text-sm text-muted-foreground">
+              Analysis&nbsp;for&nbsp;
+              {unsettledDate
+                ? new Date(unsettledDate).toLocaleDateString("en-US", {
+                    month: "long",
+                    day:   "numeric",
+                    year:  "numeric",
+                  })
+                : "—"}
+            </p>
+            {/* Gauge ring – unchanged component */}
+            <div className="flex justify-center">
+              <GaugeRing percentage={redempPct ?? 0} label={pctLabel} />
+            </div>
+
+            {/* quick facts */}
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Current Net Cash</span>
+                <span className="font-medium">{latestCash ? usdCompact(latestCash) : "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Required for Redemption</span>
+                <span className="text-destructive">
+                  {redempSum != null ? usdCompact(redempSum) : "—"}
                 </span>
               </div>
-              <p className="mt-4 text-sm text-center text-muted-foreground">
-                Total Outstanding
-                <br />
-                <span className="font-medium">{redempValue}</span>
-              </p>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{surplusLabel}</span>
+                <span className={surplusClass}>
+                  {surplus != null ? usdCompact(surplus) : "—"}
+                </span>
+              </div>
             </div>
 
-            {/* progress list (demo) */}
-            <div className="lg:col-span-2 space-y-4">
-              <h4 className="font-medium">Top 5 Redemption Requests</h4>
-              {top5Redemptions.map((row) => (
-                <div key={row.investor} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    {/* <span className="font-medium">{row.investor}</span> */}
-                    <span className="font-medium flex items-center gap-2">
-                      {row.investor}
-                      <Badge variant="secondary" className="text-xs px-2 py-0.5">
-                        {row.date}
-                      </Badge>
-                    </span>
+            {/* funding‑deadline call‑out – colour depends on days until *unsettled* date */}
+            {(() => {
+              const msPerDay        = 86_400_000;
+              const cutOff          = unsettledDate ? new Date(`${unsettledDate}T00:00:00Z`) : null;
+              const fundingDeadline = cutOff ? new Date(cutOff.getTime() - 90 * msPerDay) : null;
+              const daysToUnsettled = cutOff ? Math.ceil((cutOff.getTime() - Date.now()) / msPerDay) : null;
 
-                    <span className="text-destructive">
-                      {usdCompact(row.amount)} ({row.percentage}%)
-                    </span>
+              /* ------- badge colour logic (days *to unsettled*) ---------------- */
+              let badgeColour = "bg-red-600";
+              if (daysToUnsettled != null) {
+                if (daysToUnsettled > 120)      badgeColour = "bg-green-600";
+                else if (daysToUnsettled > 90)  badgeColour = "bg-yellow-400 text-black";
+              }
+
+              /* ------- date colour / emphasis (only the 90–120 bracket goes red) */
+              let dateClass = "font-bold text-m md:text-2xl text-green";            // default: bold black
+              if (daysToUnsettled != null && daysToUnsettled <= 120 && daysToUnsettled >= 90) {
+                dateClass = "font-extrabold text-xl md:text-2xl text-red-600";          // obvious red
+              }
+
+              return (
+                <div className="border rounded-md p-3 flex flex-col justify-between lg:flex-row lg:items-center">
+                  <div>
+                    {/* added mb‑1 for spacing */}
+                    <p className="font-medium leading-none mb-1">Funding Application Deadline</p>
+
+                    {/* apply dynamic colour class */}
+                    <p className={`text-xs ${dateClass}`}>
+                      Apply by:&nbsp;
+                      {fundingDeadline
+                        ? fundingDeadline.toLocaleDateString("en-US", {
+                            year:  "numeric",
+                            month: "numeric",
+                            day:   "numeric",
+                          })
+                        : "—"}
+                    </p>
                   </div>
-                  <Progress
-                    value={row.percentage} /* 0-100 fits the component */
-                    className="h-2 [&>div[role=progressbar]]:bg-blue-500"
-                  />
+
+                  {daysToUnsettled != null && (
+                    <Badge className={`text-xs px-2 py-0.5 ${badgeColour}`}>
+                      {daysToUnsettled}&nbsp;days
+                    </Badge>
+                  )}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
+
           </div>
-        </CardContent>
+
+          {/* ──────────────  RIGHT : top-5 list  ─────────────── */}
+          <div className="lg:pl-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">Top&nbsp;5&nbsp;Redemption&nbsp;Requests</h4>
+
+              {/* same badge component you had in the header */}
+              <Badge variant="outline" className="text-destructive border-destructive">
+                {redempPct ? `${redempPct.toFixed(1)}% of Net Cash` : "—"}
+              </Badge>
+            </div>
+
+            {top5Redemptions.map((row, idx) => (
+              <div key={`${row.investor}-${idx}`} className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium flex items-center gap-2">
+                    {row.investor}
+                    <Badge
+                      variant="secondary"
+                      className="text-xs px-2 py-0.5"
+                    >
+                      {row.date}
+                    </Badge>
+                  </span>
+
+                  <span className="text-destructive">
+                    {usdCompact(row.amount)} ({row.percentage}%)
+                  </span>
+                </div>
+
+                <Progress
+                  value={row.percentage}
+                  className="h-2 [&>div[role=progressbar]]:bg-blue-500"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
       </Card>
 
       {/* footer */}

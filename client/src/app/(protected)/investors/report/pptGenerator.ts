@@ -143,7 +143,7 @@ export async function generateInvestmentPpt(data: ReportData) {
         }},
       { image:{ data:logoTable, x:8.0, y:0.0, w:2.0, h:0.85 } },
       { text:{
-          text:"存續報告僅供內部參考使用 投資人實際數字以月結單為准",
+          text:"存續報告僅供內部參考使用投資人實際數字以月結單為准",
           options:{ x:0.4, y:4.9, w:"30%", h:0.4, fontSize:7, fontFace:"DengXian" },
         }},
     ],
