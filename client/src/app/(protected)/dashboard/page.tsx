@@ -137,7 +137,7 @@ export default function DashboardPage() {
 
         /* --- Unsettled redemptions --------------------------- */
         const urJson = await urRes.json();
-        console.log("UR urJson:", urJson);
+        // console.log("UR urJson:", urJson);
 
         if (Array.isArray(urJson)) {
           setRedempRows(urJson);

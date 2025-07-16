@@ -141,10 +141,10 @@ exports.investorDividends = async (req, res) => {
     const sql = `SELECT * FROM get_investor_dividends($1::text);`;
     const { rows } = await pool.query(sql, [investor]);
 
-    if (rows.length === 0)
-      return res
-        .status(404)
-        .json({ error: "No dividend records for that investor" });
+    // if (rows.length === 0)
+    //   return res
+    //     .status(404)
+    //     .json({ error: "No dividend records for that investor" });
 
     /* shape the response ------------------------------------------ */
     res.json({ investor, rows });          // identical to /holdings style

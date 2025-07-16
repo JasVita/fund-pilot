@@ -56,36 +56,53 @@ type StyledCell = {
   };
 };
 
-/* ---------- util fns --------------------------------------- */
-const fmtYYYYMM = (s: string) => {
-  const d = new Date(s);
-  return isNaN(d.getTime())
-    ? s
-    : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-};
-const to2dp    = (s: string) => {
+/* ────────────────────────────────────────────────────────────
+ *  SMALL UTILS – **★ all starred blocks are new / changed**
+ * ──────────────────────────────────────────────────────────── */
+function splitLines(s: string) {
+  return s.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+}
+
+/* ★ give “2023-04\n2023-09” → “2023-04\n2023-09” (each part YYYY-MM) */
+const fmtYYYYMM = (raw: string) =>
+  splitLines(raw)
+    .map(part => {
+      const d = new Date(part);
+      return isNaN(d.getTime())
+        ? part
+        : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    })
+    .join("\n");
+
+/* ★ keeps multiple numbers, formats each one -> “280,000.00\n500,000.00” */
+const fmtMoney = (raw: string) =>
+  splitLines(raw)
+    .map(part => {
+      const n = Number(part.replace(/,/g, ""));
+      return !Number.isFinite(n) || n === 0
+        ? ""
+        : n.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+    })
+    .join("\n");
+
+/* unchanged helpers -------------------------------------------------- */
+const to2dp = (s: string) => {
   const n = Number(s.replace(/,/g, ""));
   return isNaN(n) ? s : n.toFixed(2);
 };
-const fmtMoney = (v: string) => {
-  const n = Number(v.replace(/,/g, ""));
-  return !Number.isFinite(n) || n === 0
-    ? ""
-    : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
-const fmtPercent = (v: string | undefined) => v && v.trim() !== "" ? `${v}%` : "";
 
 function profitCell(raw: string | undefined): StyledCell {
   const pct = (raw ?? "").trim();
   const num = parseFloat(pct.replace(/[+,％%]/g, ""));   // strip sign/% then cast
-  if (Number.isFinite(num) && num > 0) {
-    return {
-      text: `+${fmtPercent(pct)}`,              // prepend “+”
-      options: { color: "C00000", bold: true }, // bright-red & bold
-    };
-  }
-  return { text: fmtPercent(pct) };             // leave ≤0 / blank unchanged
+
+  /* every cell is red; keep bold only for positive values */
+  return {
+    text: pct === "" ? "" : (num > 0 ? `+${pct}%` : `${pct}%`),
+    options: { color: "C00000", bold: Number.isFinite(num) && num > 0 }
+  };
 }
 
 /* ---------- cached fetch → base-64 helpers ----------------- */
@@ -123,12 +140,13 @@ const getLogoDisclaimer = () => fetchAsDataURL("/logo-white-disclaimer.png","log
 /* ---------- optional API call ------------------------------ */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
 async function fetchFormattedName(name: string): Promise<string> {
-  const r = await fetch(
-    `${API_BASE}/investors/format-name?name=${encodeURIComponent(name.trim())}`,
-    { credentials: "include" },
-  );
+  const url = `${API_BASE}/investors/format-name?name=${encodeURIComponent(name.trim())}`;
+
+  const r   = await fetch(url, { credentials: "include" });
+  const txt = await r.text();
+
   if (!r.ok) throw new Error(`format-name ${r.status}`);
-  return (await r.text()).trim();
+  return txt.trim();
 }
 
 /* ============================================================
@@ -138,9 +156,7 @@ export async function generateInvestmentPpt(data: ReportData) {
   /* 1. meta --------------------------------------------------- */
   const canonicalName = await fetchFormattedName(data.investor);
   const initials      = canonicalName.trim().split(/\s+/).map(w => w[0].toUpperCase()).join("");
-  const prettyDate    = new Date(`${data.reportDate}T00:00:00Z`)
-                          .toLocaleString("en", { timeZone:"UTC", month:"short", year:"numeric" })
-                          .replace(" ", " - ");
+  const prettyDate    = new Date(`${data.reportDate}T00:00:00Z`).toLocaleString("en", { timeZone:"UTC", month:"short", year:"numeric" }).replace(" ", " - ");
 
   const pptx = new PptxGenJS();
   pptx.author  = "Fund Pilot";
@@ -150,8 +166,7 @@ export async function generateInvestmentPpt(data: ReportData) {
 
   /* 2. assets ------------------------------------------------- */
   const [bgCover, logoCover, logoTable, logoDisc] =
-    await Promise.all([getCoverImg(), getLogoCoverImg(),
-                       getLogoTableBlack(), getLogoDisclaimer()]);
+    await Promise.all([getCoverImg(), getLogoCoverImg(), getLogoTableBlack(), getLogoDisclaimer()]);
 
   /* 3. cover slide ------------------------------------------- */
   {
@@ -244,6 +259,8 @@ export async function generateInvestmentPpt(data: ReportData) {
         profitCell(r.estimatedProfit),
       ]);
     });
+
+    // console.table(allRows.map(r => r.map(c => typeof c === "object" ? c.text : c))); 
 
     // single call – pptxgenjs paginates, we overlay afterwards
     addPaginatedTable(pptx, allRows, logoTable);

@@ -38,9 +38,7 @@ async function fetchAsDataURL(path: string, key: string): Promise<string> {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
 
 async function fetchFormattedName(raw: string): Promise<string> {
-  const url = `${API_BASE}/investors/format-name?name=${encodeURIComponent(
-    raw.trim()
-  )}`;
+  const url = `${API_BASE}/investors/format-name?name=${encodeURIComponent(raw.trim())}`;
   const r = await fetch(url, { credentials: "include" });
   if (!r.ok) throw new Error(`format-name fetch ${r.status}`);
   return (await r.text()).trim();
@@ -126,7 +124,7 @@ export async function generateInvestmentReport(data: ReportData) {
   const canonicalName = await fetchFormattedName(data.investor);    
   
   const nameInitials  = initials(canonicalName);                   
-  console.log("[generateInvestmentReport] canonicalName →", canonicalName, "nameInitials →", nameInitials);
+  // console.log("[generateInvestmentReport] canonicalName →", canonicalName, "nameInitials →", nameInitials);
 
   /* ---------- page geometry (A4 landscape) ----------------------- */
   const pageH = 210;                       // mm
