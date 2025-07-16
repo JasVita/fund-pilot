@@ -217,13 +217,13 @@ export function AppSidebar(
 
 
   /* ── debug ─────────────────────────────────────────── */
-  React.useEffect(() => {
-    console.log("[AppSidebar] Nav-user payload →", {
-      name: user?.name,
-      email: user?.email,
-      avatar: user?.avatar || "/logo-white-table.png",
-    });
-  }, [user]);
+  // React.useEffect(() => {
+  //   console.log("[AppSidebar] Nav-user payload →", {
+  //     name: user?.name,
+  //     email: user?.email,
+  //     avatar: user?.avatar || "/logo-white-table.png",
+  //   });
+  // }, [user]);
   /* ─────────────────────────────────────────────────── */
 
   return (

@@ -262,26 +262,39 @@ export default function InvestorsPage() {
   * 3c. dividend history – refetch when investor changes
   * ------------------------------------------------------------------ */
   useEffect(() => {
-    if (!selected) { setDivRows([]); return; }
+    if (!selected) {                     // nothing selected → empty table
+      setDivRows([]);
+      return;
+    }
 
     (async () => {
       try {
         setLoadingDivs(true);
+
         const url = `${API_BASE}/investors/holdings/dividends` +
-          `?investor=${encodeURIComponent(selected.investor ?? "")}`;
+                    `?investor=${encodeURIComponent(selected.investor ?? "")}`;
 
-        const r = await fetch(url, { credentials: "include" });
-        const j: { rows?: DividendRow[] } = await r.json();
+        const res = await fetch(url, { credentials: "include" });
 
+        /* ── A. graceful handling when the API returns 404 ───────── */
+        if (res.status === 404) {        // “no dividend records” sentinel
+          setDivRows([]);                // just show an empty table
+          return;                        // ⇠ stop here – don’t .json()
+        }
+        if (!res.ok) throw new Error(res.statusText);
+
+        const j: { rows?: DividendRow[] } = await res.json();
         setDivRows(Array.isArray(j.rows) ? j.rows : []);
-      } catch (e) {
-        console.error("dividends fetch:", e);
-        setDivRows([]);
+
+      } catch (err) {
+        console.error("dividends fetch:", err);
+        setDivRows([]);                  // keep state an array on error
       } finally {
         setLoadingDivs(false);
       }
     })();
   }, [selected]);
+
 
   /* ------------------------------------------------------------------ *
    *  UX helpers
@@ -462,7 +475,7 @@ export default function InvestorsPage() {
             {/* ── ❷ Latest-holdings-across-all-funds table ─────────────────── */}
             <Card className="mt-4">
               <CardHeader>
-                <CardTitle>Latest Holdings&nbsp;(per&nbsp;Fund)</CardTitle>
+                <CardTitle>Latest&nbsp;Holdings&nbsp;(per&nbsp;Fund)</CardTitle>
               </CardHeader>
 
               <CardContent className="p-6">
@@ -531,7 +544,7 @@ export default function InvestorsPage() {
 
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Fund Name</TableHead>
+                        <TableHead>Fund&nbsp;Name</TableHead>
                         <TableHead className="whitespace-nowrap">Paid&nbsp;Date</TableHead>
                         <TableHead className="text-right">Amount&nbsp;(USD)</TableHead>
                       </TableRow>
@@ -547,7 +560,7 @@ export default function InvestorsPage() {
                       ) : divRows.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={3} className="text-center">
-                            No data
+                            No&nbsp;data
                           </TableCell>
                         </TableRow>
                       ) : (
