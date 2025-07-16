@@ -176,8 +176,8 @@ exports.investorReport = async (req, res) => {
                         r.data_cutoff,
                         r.subscribed,
                         r.market_value) IS NOT NULL
-        ORDER  BY f.fund_id,                       -- keep fund order
-                  r.sub_date;                      --   then by date
+        ORDER  BY f.fund_id,
+                  r.sub_date; 
     `;
 
     const { rows } = await pool.query(sql, [investor]);

@@ -13,7 +13,7 @@ const CN_SURNAMES = new Set([
   "Zheng","Xie","Ye","Deng","Fang","Wei","Cao","Peng","Jiang","Qian",
   "Pan","Xiang","Xiong","Shi","Tan","Han","Yuan","Yao","Tong","Meng",
   "Pei","Hong","Kong","Lai","Cui","Duan","Bai","Mo","Rao","Shen",
-  "Song","Tian","Su","Fan","Cheng"            // extras
+  "Song","Tian","Su","Fan","Cheng","Che","Ming"
 ]);
 
 /* company key-words → treat as non-personal */

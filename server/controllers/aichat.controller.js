@@ -45,7 +45,7 @@ const llm = new ChatOpenAI({
 });
 
 const sqlGenPrompt = PromptTemplate.fromTemplate(`
-You are **FundPilot’s senior PostgreSQL engineer**.  
+You are **FundPilot's senior PostgreSQL engineer**.  
 Return **one read-only PostgreSQL statement** that answers the user question.
 
 ────────────────── DB DICTIONARY + DDL ──────────────────
@@ -63,7 +63,7 @@ Core rules
 
 3. FUND model  
    • A single numeric **fund_id ⇒ exactly one logical fund**.  
-     fundlist 可能重覆列出相同 fund_id / fund_categories；**重覆不影響唯一性**。  
+     fundlist 可能重覆列出相同 fund_id / fund_categories; **重覆不影響唯一性**。  
    • 'fund_categories' = canonical display label for that fund.  
    • 'fund_name' columns found in PDFs/Excels are *raw labels*;  
      map them to the true fund by  
@@ -72,7 +72,7 @@ Core rules
 
 4. Investor → Fund workflow  
    • 如果問題與投資人持倉 / 現金 / P&L 有關：  
-       a. 先用 **investor_fund_map**（Rule 1 比對）找出 *所有* fund_id。  
+       a. 先用 **investor_fund_map**(Rule 1 比對)找出 *所有* fund_id。  
        b. 以這些 fund_id 再查 holdings_*, fund_*, contract_notes…  
    • 不要直接以 fund_name 做 GROUP BY 或過濾。
 
@@ -81,7 +81,7 @@ Core rules
      （每隻 fund 自己取最新一筆）。
 
 6. Tenant scope  
-   • 本部署所有資料同一 company_id，可 **忽略 company_id** 欄位。
+   • 本部署所有資料同一 company_id, 可 **忽略 company_id** 欄位。
 
 Other guidelines
 ────────────────
@@ -115,7 +115,7 @@ Correct SQL:
 `);
 
 const analysisPrompt = PromptTemplate.fromTemplate(`
-You are FundPilot’s client-facing analyst.
+You are FundPilot's client-facing analyst.
 
 Inputs
 ──────

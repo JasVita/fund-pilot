@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { KPICard } from "./KPICard";
-import { Download, Filter, Calendar, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
+import GaugeRing from "./GaugeRing";
+import { Download, Filter, DollarSign, TrendingUp, AlertTriangle, Clock3 } from "lucide-react";
 
-import { Line, Bar, Doughnut } from "react-chartjs-2";
+import { Line, Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler } from "chart.js";
 
 ChartJS.register( CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler );
@@ -58,6 +59,7 @@ type UnsettledRow = {
 };
 
 type Fund = { fund_id: number; fund_name: string };
+type DealRow = { dealing_date: string; daily_amount: string; submission_date: string };
 
 /* ─── Component ─────────────────────────────────────── */
 export default function DashboardPage() {
@@ -80,10 +82,18 @@ export default function DashboardPage() {
 
   /* Unsettled redemptions */
   const [redempRows     , setRedempRows   ] = useState<UnsettledRow[]>([]);
-  const [redempSum      , setRedempSum    ] = useState<number|null>(null);
 
   /* NAV vs. Dividend bar-chart */
   const [navRows        , setNavRows      ] = useState< { period:string; nav:string; dividend:string }[] >([]);
+
+  /* Unsettled-redemption cut-off dates */
+  const [dealRows     , setDealRows     ] = useState<DealRow[]>([]);
+  const [unsettledOpts, setUnsettledOpts] = useState<string[]>([]);
+  const [unsettledDate, setUnsettledDate] = useState<string>(""); 
+
+  /* ── client-side “last updated” stamp ─────────────── */
+  const [clientTime, setClientTime] = useState<string>(""); 
+  useEffect(() => { setClientTime(new Date().toLocaleString()); }, []);
 
   /* fetch funds once ------------------------------------------------ */
   useEffect(() => {
@@ -105,11 +115,12 @@ export default function DashboardPage() {
 
     (async () => {
       try {
-        const [ncRes, urRes, ndRes, aumRes] = await Promise.all([
+        const [ncRes, urRes, ndRes, aumRes, dcRes] = await Promise.all([
           fetch(`${API_BASE}/dashboard/net-cash?${qp}`, { credentials: "include" }),
           fetch(`${API_BASE}/dashboard/unsettled-redemption?${qp}`, { credentials: "include" }),
           fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div?${qp}`, { credentials: "include" }),
           fetch(`${API_BASE}/dashboard/aum?${qp}`, { credentials:"include" }),
+          fetch(`${API_BASE}/dashboard/dealing-calendar?${qp}`, { credentials:"include" }),
 
         ]);
         /* --- Net-cash ---------------------------------------- */
@@ -127,20 +138,16 @@ export default function DashboardPage() {
         /* --- Unsettled redemptions --------------------------- */
         const urJson = await urRes.json();
         console.log("UR urJson:", urJson);
+
         if (Array.isArray(urJson)) {
           setRedempRows(urJson);
-          setRedempSum(urJson.reduce((acc:number,r:any)=>acc+Math.abs(+r.amount),0));
+
+          if (!unsettledDate && unsettledOpts.length) {
+            setUnsettledDate(unsettledOpts[0]); 
+          }
         }
 
         /* --- NAV + Dividend rows ------------------------------ */
-        // setNavRows(await ndRes.json());
-        // const ndJson = await ndRes.json();
-
-        // if (Array.isArray(ndJson)) {
-        //   setNavRows(ndJson); 
-        // }
-
-        /* --- NAV vs Div -------------------------------------- */
         setNavRows(await ndRes.json());
 
         /* --- AUM rows ---------------------------------------- */
@@ -152,6 +159,20 @@ export default function DashboardPage() {
           setAumValue(usdCompact(+aumJson[0].nav_total));
           setAumNextAfter(aumJson.at(-1)!.snapshot);
         }
+
+        /* --- Dealing calendar  -------------------------------- */
+        const dcJson = await dcRes.json();
+        if (Array.isArray(dcJson) && dcJson.length) {
+          setDealRows(dcJson);                           // store for later use
+          const opts = dcJson.map((r:any)=> r.dealing_date);
+          setUnsettledOpts(opts);
+          if (!unsettledDate && opts[0]) setUnsettledDate(opts[0]);
+        } else {
+          setDealRows([]);
+          setUnsettledOpts([]);
+          setUnsettledDate("");
+        }
+
       } catch (err) { console.error("Dashboard fetch error:", err); }
     })();
   }, [fundId]);  
@@ -206,49 +227,25 @@ export default function DashboardPage() {
 
   /* -------- derived metrics --------------------------------- */
   const pendingCount = redempRows.length;
-  const redempValue = redempSum != null ? usdCompact(redempSum) : "—";
+  const requiredToday = (() => {
+    const row = dealRows.find(r => r.dealing_date === unsettledDate);
+    return row ? Number(row.daily_amount) : null;
+  })();
+
+  const redempValue   = requiredToday != null ? usdCompact(requiredToday) : "—";
   const latestCash = netCashHistory[0] ? Number(netCashHistory[0].closing_avail) : null;
-  const redempPct = latestCash && redempSum ? (redempSum / latestCash) * 100 : null;
+  const redempPct = latestCash && requiredToday ? (requiredToday / latestCash) * 100 : null;
   
   /* clamp to [0 , 100] for the chart – keep the raw value for the label */
-  const pctClamped  = redempPct != null ? Math.min(Math.max(redempPct, 0), 100) : 0;
   const pctLabel    = redempPct != null ? `${redempPct.toFixed(1)}%` : "—";
 
-  /* ---------- dynamic gradient helper ----------------------- */
-  const makeRedGradient = (ctx: any, darker = false) => {
-    const { ctx: g, chartArea } = ctx.chart;
-    if (!chartArea) return darker ? "#b91c1c" : "#ef4444";           // 1st render
+  /* Outstanding Redemptions surplus helpers */
+  const surplus      = latestCash != null && requiredToday != null ? latestCash - requiredToday : null;
+  const surplusLabel = surplus != null && surplus < 0 ? "Deficit" : "Surplus";
+  const surplusClass = surplus != null && surplus < 0
+    ? "text-red-600 font-semibold"   // negative → bold red
+    : "text-green-600";              // positive → green
 
-    /* vertical gradient, light → deep red                       */
-    const grad = g.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-    if (darker) {
-      grad.addColorStop(0, "#ef4444");   // red-500
-      grad.addColorStop(1, "#b91c1c");   // red-700
-    } else {
-      grad.addColorStop(0, "#fca5a5");   // red-300
-      grad.addColorStop(1, "#ef4444");   // red-500
-    }
-    return grad;
-  };
-
-  /* dataset slices ---------------------------------------------------- */
-  const gaugeData = {
-    labels: ["Outstanding", "Remaining"],
-    datasets: [
-      {
-        data: [pctClamped, 100 - pctClamped],
-        backgroundColor: (ctx: any) =>
-          ctx.parsed !== undefined && ctx.dataIndex === 0      // first slice
-            ? makeRedGradient(ctx, redempPct != null && redempPct > 100)
-            : "#e5e7eb",                                       // grey slice
-        hoverBackgroundColor: (ctx: any) =>
-          ctx.dataIndex === 0
-            ? makeRedGradient(ctx, true)
-            : "#e5e7eb",
-        borderWidth: 0,
-      },
-    ],
-  };
   /* -------- Top-5 redemption rows ----------------------------- */
   const top5Redemptions = useMemo(() => {
     if (!redempRows.length || !latestCash) return [];
@@ -334,38 +331,20 @@ export default function DashboardPage() {
             </SelectContent>
           </Select> */}
 
-          {/* <Select defaultValue="all">
-            <SelectTrigger className="w-48">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Annum Asia New Dividend Income Fund</SelectItem>
-              <SelectItem value="equity">Equity Fund</SelectItem>
-              <SelectItem value="bond">Bond Fund</SelectItem>
-              <SelectItem value="hybrid">Hybrid Fund</SelectItem>
-            </SelectContent>
-          </Select> */}
            {/* fund picker -------------------------------------------------- */}
             <Select value={fundId !== null ? String(fundId) : ""} onValueChange={(v) => setFundId(Number(v))} >
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="min-w-[20rem]">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue placeholder="Choose a fund" />
               </SelectTrigger>
 
               <SelectContent>
                 {funds.map((f) => (
-                  <SelectItem key={f.fund_id} value={String(f.fund_id)}>
-                    {f.fund_name}
-                  </SelectItem>
+                  <SelectItem key={f.fund_id} value={String(f.fund_id)}>{f.fund_name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
         </div>
-        {/* <Button variant="outline" size="sm">
-          <Download className="w-4 h-4 mr-2" />
-          Export Report
-        </Button> */}
       </div>
 
       {/* KPI cards */}
@@ -374,14 +353,12 @@ export default function DashboardPage() {
         <KPICard title="Net Cash" value={monthValue}     change="" changeType="neutral" description="" icon={DollarSign}
                   right={
                       <Select value={monthFilter} onValueChange={setMonthFilter}>
-                        <SelectTrigger className="h-7 w-28 text-xs">
+                        <SelectTrigger className="h-7 w-36 text-xs">
                           <SelectValue placeholder="Month" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-80 overflow-y-auto">
                           {monthOptions.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
+                            <SelectItem key={m} value={m}>{m}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -390,20 +367,46 @@ export default function DashboardPage() {
         <KPICard title="AUM" value={aumValue} change="" changeType="positive" description="" icon={TrendingUp} 
                   right={
                       <Select value={aumSelected} onValueChange={setAumSelected}>
-                        <SelectTrigger className="h-7 w-28 text-xs">
+                        <SelectTrigger className="h-7 w-36 text-xs">
                           <SelectValue placeholder="Month" />
                         </SelectTrigger>
-                        <SelectContent onScroll={handleAumScroll} className="max-h-60 overflow-y-auto">
+                        <SelectContent onScroll={handleAumScroll} className="max-h-80 overflow-y-auto">
                           {aumOptions.map((iso) => (
-                            <SelectItem key={iso} value={iso}>
-                              {monthYearLabel(iso)}
-                            </SelectItem>
+                            <SelectItem key={iso} value={iso}>{monthYearLabel(iso)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
           }/>
 
-        <KPICard title="Unsettled Redemptions" value={<span className="text-red-600">{redempValue}</span>} change={`${pendingCount} pending`} changeType="neutral" description="Awaiting settlement" icon={AlertTriangle} />
+        {/* Unsettled Redemptions card */}
+        <KPICard 
+          title="Unsettled Redemptions" 
+          value={<span className="text-red-600">{redempValue}</span>} 
+          change={`${pendingCount} pending`} 
+          changeType="neutral" 
+          description="Awaiting settlement" 
+          icon={AlertTriangle} 
+          /* ▼ new dropdown ---------------------------------------- */
+          right={
+            <Select value={unsettledDate} onValueChange={setUnsettledDate}>
+              <SelectTrigger className="h-7 w-40 text-xs">
+                <SelectValue placeholder="Date" />
+              </SelectTrigger>
+
+              <SelectContent>
+                {unsettledOpts.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {new Date(d).toLocaleDateString("en-US", {
+                      month: "long",
+                      day:   "numeric",
+                      year:  "numeric",
+                    })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+          />
       </div>
 
       {/* charts */}
@@ -491,89 +494,148 @@ export default function DashboardPage() {
       <Card>
         <CardHeader className="flex items-center justify-between">
           <CardTitle className="text-lg">Outstanding Redemptions</CardTitle>
-          <Badge variant="outline" className="text-destructive border-destructive">
+          {/* <Badge variant="outline" className="text-destructive border-destructive">
             {redempPct ? `${redempPct.toFixed(1)}% of Net Cash` : "—"}
-          </Badge>
+          </Badge> */}
         </CardHeader>
 
         <CardContent>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* gauge */}
-            <div className="flex flex-col items-center justify-center">
-              <div className="relative w-36 h-36">
-                <Doughnut
-                data={gaugeData}
-                options={{
-                  rotation: 0,
-                  cutout: "75%",
-                  plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                }}
-                  // data={{
-                  //   labels: ["Outstanding", "Remaining"],
-                  //   datasets: [
-                  //     {
-                  //       data: [redempPct ?? 0, redempPct != null ? 100 - redempPct : 100],
-                  //       backgroundColor: ["#ef4444", "#e5e7eb"],
-                  //       borderWidth: 0,
-                  //     },
-                  //   ],
-                  // }}
-                  // options={{
-                  //   rotation: 0,
-                  //   cutout: "75%",
-                  //   plugins: {
-                  //     legend: { display: false },
-                  //     tooltip: { enabled: false },
-                  //   },
-                  // }}
-                />
-                <span className={`absolute inset-0 flex items-center justify-center
-                 font-bold text-2xl
-                 ${redempPct != null && redempPct > 100 ? "text-red-700" : "text-destructive"}`}>
-                  {/* {redempPct ? `${redempPct.toFixed(1)}%` : "—"} */}
-                  {pctLabel}
+        {/*  1 col on mobile, 3 cols on lg – left part is new  */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+          {/* ──────────────  LEFT : analysis + gauge  ───────────── */}
+          <div className="space-y-4">
+            {/* analysis date (closest *future* cut-off) */}
+            <p className="text-sm text-muted-foreground">
+              Analysis&nbsp;for&nbsp;
+              {unsettledDate
+                ? new Date(unsettledDate).toLocaleDateString("en-US", {
+                    month: "long",
+                    day:   "numeric",
+                    year:  "numeric",
+                  })
+                : "—"}
+            </p>
+            {/* Gauge ring – unchanged component */}
+            <div className="flex justify-center">
+              <GaugeRing percentage={redempPct ?? 0} label={pctLabel} />
+            </div>
+
+            {/* quick facts */}
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Current Net Cash</span>
+                <span className="font-medium">{latestCash ? usdCompact(latestCash) : "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Required for Redemption</span>
+                <span className="text-destructive">
+                  {requiredToday != null ? usdCompact(requiredToday) : "—"}
                 </span>
               </div>
-              <p className="mt-4 text-sm text-center text-muted-foreground">
-                Total Outstanding
-                <br />
-                <span className="font-medium">{redempValue}</span>
-              </p>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{surplusLabel}</span>
+                <span className={surplusClass}>
+                  {surplus != null ? usdCompact(surplus) : "—"}
+                </span>
+              </div>
             </div>
 
-            {/* progress list (demo) */}
-            <div className="lg:col-span-2 space-y-4">
-              <h4 className="font-medium">Top 5 Redemption Requests</h4>
-              {top5Redemptions.map((row) => (
-                <div key={row.investor} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    {/* <span className="font-medium">{row.investor}</span> */}
-                    <span className="font-medium flex items-center gap-2">
-                      {row.investor}
-                      <Badge variant="secondary" className="text-xs px-2 py-0.5">
-                        {row.date}
-                      </Badge>
-                    </span>
+            {/* funding‑deadline call‑out – colour depends on days until *unsettled* date */}
+            {(() => {
+              const msPerDay = 86_400_000;
 
-                    <span className="text-destructive">
-                      {usdCompact(row.amount)} ({row.percentage}%)
-                    </span>
+              /* 1️⃣ find the calendar row that matches the selected dealing date */
+              const row = dealRows.find((r) => r.dealing_date === unsettledDate);
+              const deadline = row ? new Date(`${row.submission_date}T00:00:00Z`) : null;
+
+              /* 2️⃣ how many days from **today** to that deadline? */
+              const daysLeft = deadline ? Math.ceil((deadline.getTime() - Date.now()) / msPerDay) : null;
+
+              /* 3️⃣ badge colour rules */
+              let badgeColour = "bg-green-600";
+              if (daysLeft != null) {
+                if (daysLeft <= 0)           badgeColour = "bg-red-600";
+                else if (daysLeft <= 30)     badgeColour = "bg-yellow-400 text-black";
+              }
+
+              return (
+                <div className="border rounded-md p-3 flex flex-col justify-between lg:flex-row lg:items-center">
+                  <div>
+                    <p className="font-medium leading-none mb-1 flex items-center gap-1">
+                      <Clock3 className="w-3.5 h-3.5" />
+                      Funding&nbsp;Application&nbsp;Deadline
+                    </p>
+
+                    <p className="text-xs font-semibold">
+                      Apply&nbsp;by:&nbsp;
+                      {deadline
+                        ? deadline.toLocaleDateString("en-US", {
+                            month : "long",
+                            day   : "numeric",
+                            year  : "numeric",
+                          })
+                        : "—"}
+                    </p>
                   </div>
-                  <Progress
-                    value={row.percentage} /* 0-100 fits the component */
-                    className="h-2 [&>div[role=progressbar]]:bg-blue-500"
-                  />
+
+                  {daysLeft != null && (
+                    <Badge className={`text-xs px-2 py-0.5 ${badgeColour}`}>
+                      {daysLeft}&nbsp;days
+                    </Badge>
+                  )}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
+
           </div>
-        </CardContent>
+
+          {/* ──────────────  RIGHT : top-5 list  ─────────────── */}
+          <div className="lg:pl-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">Top&nbsp;5&nbsp;Redemption&nbsp;Requests</h4>
+
+              {/* same badge component you had in the header */}
+              <Badge variant="outline" className="text-destructive border-destructive">
+                {redempPct ? `${redempPct.toFixed(1)}% of Net Cash` : "—"}
+              </Badge>
+            </div>
+
+            {top5Redemptions.map((row, idx) => (
+              <div key={`${row.investor}-${idx}`} className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium flex items-center gap-2">
+                    {row.investor}
+                    <Badge
+                      variant="secondary"
+                      className="text-xs px-2 py-0.5"
+                    >
+                      {row.date}
+                    </Badge>
+                  </span>
+
+                  <span className="text-destructive">
+                    {usdCompact(row.amount)} ({row.percentage}%)
+                  </span>
+                </div>
+
+                <Progress
+                  value={row.percentage}
+                  className="h-2 [&>div[role=progressbar]]:bg-blue-500"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
       </Card>
 
-      {/* footer */}
+      {/* footer – avoid hydration mismatch */}
       <footer className="flex justify-between text-sm text-muted-foreground">
         {/* <span>Last file processed: NAV_2024_12_03.xlsx • 2 errors found</span> */}
-        <span>Last updated: {new Date().toLocaleString()}</span>
+        <span suppressHydrationWarning>
+          Last&nbsp;updated:&nbsp;{clientTime || "—"}
+        </span>
       </footer>
     </div>
   );
