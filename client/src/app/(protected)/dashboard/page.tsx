@@ -7,9 +7,9 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { KPICard } from "./KPICard";
 import GaugeRing from "./GaugeRing";
-import { Download, Filter, Calendar, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
+import { Download, Filter, DollarSign, TrendingUp, AlertTriangle, Clock3 } from "lucide-react";
 
-import { Line, Bar, Doughnut } from "react-chartjs-2";
+import { Line, Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler } from "chart.js";
 
 ChartJS.register( CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler );
@@ -59,6 +59,7 @@ type UnsettledRow = {
 };
 
 type Fund = { fund_id: number; fund_name: string };
+type DealRow = { dealing_date: string; daily_amount: string; submission_date: string };
 
 /* ─── Component ─────────────────────────────────────── */
 export default function DashboardPage() {
@@ -81,16 +82,18 @@ export default function DashboardPage() {
 
   /* Unsettled redemptions */
   const [redempRows     , setRedempRows   ] = useState<UnsettledRow[]>([]);
-  const [redempSum      , setRedempSum    ] = useState<number|null>(null);
 
   /* NAV vs. Dividend bar-chart */
   const [navRows        , setNavRows      ] = useState< { period:string; nav:string; dividend:string }[] >([]);
 
   /* Unsettled-redemption cut-off dates */
-  // const [unsettledOpts , setUnsettledOpts]  = useState<string[]>([]);
-  const [unsettledOpts, setUnsettledOpts] = useState<string[]>([ "2026-01-15", "2025-10-20", "2025-09-18" ]);   
-  const [unsettledDate, setUnsettledDate]   = useState<string>("");   // ISO "YYYY-MM-DD"
+  const [dealRows     , setDealRows     ] = useState<DealRow[]>([]);
+  const [unsettledOpts, setUnsettledOpts] = useState<string[]>([]);
+  const [unsettledDate, setUnsettledDate] = useState<string>(""); 
 
+  /* ── client-side “last updated” stamp ─────────────── */
+  const [clientTime, setClientTime] = useState<string>(""); 
+  useEffect(() => { setClientTime(new Date().toLocaleString()); }, []);
 
   /* fetch funds once ------------------------------------------------ */
   useEffect(() => {
@@ -112,11 +115,12 @@ export default function DashboardPage() {
 
     (async () => {
       try {
-        const [ncRes, urRes, ndRes, aumRes] = await Promise.all([
+        const [ncRes, urRes, ndRes, aumRes, dcRes] = await Promise.all([
           fetch(`${API_BASE}/dashboard/net-cash?${qp}`, { credentials: "include" }),
           fetch(`${API_BASE}/dashboard/unsettled-redemption?${qp}`, { credentials: "include" }),
           fetch(`${API_BASE}/dashboard/nav-value-totals-vs-div?${qp}`, { credentials: "include" }),
           fetch(`${API_BASE}/dashboard/aum?${qp}`, { credentials:"include" }),
+          fetch(`${API_BASE}/dashboard/dealing-calendar?${qp}`, { credentials:"include" }),
 
         ]);
         /* --- Net-cash ---------------------------------------- */
@@ -137,12 +141,9 @@ export default function DashboardPage() {
 
         if (Array.isArray(urJson)) {
           setRedempRows(urJson);
-          setRedempSum(
-            urJson.reduce((acc: number, r: any) => acc + Math.abs(+r.amount), 0)
-          );
 
           if (!unsettledDate && unsettledOpts.length) {
-            setUnsettledDate(unsettledOpts[0]); // first mock date
+            setUnsettledDate(unsettledOpts[0]); 
           }
         }
 
@@ -158,6 +159,20 @@ export default function DashboardPage() {
           setAumValue(usdCompact(+aumJson[0].nav_total));
           setAumNextAfter(aumJson.at(-1)!.snapshot);
         }
+
+        /* --- Dealing calendar  -------------------------------- */
+        const dcJson = await dcRes.json();
+        if (Array.isArray(dcJson) && dcJson.length) {
+          setDealRows(dcJson);                           // store for later use
+          const opts = dcJson.map((r:any)=> r.dealing_date);
+          setUnsettledOpts(opts);
+          if (!unsettledDate && opts[0]) setUnsettledDate(opts[0]);
+        } else {
+          setDealRows([]);
+          setUnsettledOpts([]);
+          setUnsettledDate("");
+        }
+
       } catch (err) { console.error("Dashboard fetch error:", err); }
     })();
   }, [fundId]);  
@@ -212,36 +227,24 @@ export default function DashboardPage() {
 
   /* -------- derived metrics --------------------------------- */
   const pendingCount = redempRows.length;
-  const redempValue = redempSum != null ? usdCompact(redempSum) : "—";
+  const requiredToday = (() => {
+    const row = dealRows.find(r => r.dealing_date === unsettledDate);
+    return row ? Number(row.daily_amount) : null;
+  })();
+
+  const redempValue   = requiredToday != null ? usdCompact(requiredToday) : "—";
   const latestCash = netCashHistory[0] ? Number(netCashHistory[0].closing_avail) : null;
-  const redempPct = latestCash && redempSum ? (redempSum / latestCash) * 100 : null;
+  const redempPct = latestCash && requiredToday ? (requiredToday / latestCash) * 100 : null;
   
   /* clamp to [0 , 100] for the chart – keep the raw value for the label */
   const pctLabel    = redempPct != null ? `${redempPct.toFixed(1)}%` : "—";
 
   /* Outstanding Redemptions surplus helpers */
-  const surplus      = latestCash != null && redempSum != null ? latestCash - redempSum : null;
+  const surplus      = latestCash != null && requiredToday != null ? latestCash - requiredToday : null;
   const surplusLabel = surplus != null && surplus < 0 ? "Deficit" : "Surplus";
   const surplusClass = surplus != null && surplus < 0
     ? "text-red-600 font-semibold"   // negative → bold red
     : "text-green-600";              // positive → green
-
-  /* ---------- dynamic gradient helper ----------------------- */
-  const makeRedGradient = (ctx: any, darker = false) => {
-    const { ctx: g, chartArea } = ctx.chart;
-    if (!chartArea) return darker ? "#b91c1c" : "#ef4444";           // 1st render
-
-    /* vertical gradient, light → deep red                       */
-    const grad = g.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-    if (darker) {
-      grad.addColorStop(0, "#ef4444");   // red-500
-      grad.addColorStop(1, "#b91c1c");   // red-700
-    } else {
-      grad.addColorStop(0, "#fca5a5");   // red-300
-      grad.addColorStop(1, "#ef4444");   // red-500
-    }
-    return grad;
-  };
 
   /* -------- Top-5 redemption rows ----------------------------- */
   const top5Redemptions = useMemo(() => {
@@ -330,7 +333,7 @@ export default function DashboardPage() {
 
            {/* fund picker -------------------------------------------------- */}
             <Select value={fundId !== null ? String(fundId) : ""} onValueChange={(v) => setFundId(Number(v))} >
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="min-w-[20rem]">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue placeholder="Choose a fund" />
               </SelectTrigger>
@@ -353,7 +356,7 @@ export default function DashboardPage() {
                         <SelectTrigger className="h-7 w-36 text-xs">
                           <SelectValue placeholder="Month" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-80 overflow-y-auto">
                           {monthOptions.map((m) => (
                             <SelectItem key={m} value={m}>{m}</SelectItem>
                           ))}
@@ -367,7 +370,7 @@ export default function DashboardPage() {
                         <SelectTrigger className="h-7 w-36 text-xs">
                           <SelectValue placeholder="Month" />
                         </SelectTrigger>
-                        <SelectContent onScroll={handleAumScroll} className="max-h-60 overflow-y-auto">
+                        <SelectContent onScroll={handleAumScroll} className="max-h-80 overflow-y-auto">
                           {aumOptions.map((iso) => (
                             <SelectItem key={iso} value={iso}>{monthYearLabel(iso)}</SelectItem>
                           ))}
@@ -527,7 +530,7 @@ export default function DashboardPage() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Required for Redemption</span>
                 <span className="text-destructive">
-                  {redempSum != null ? usdCompact(redempSum) : "—"}
+                  {requiredToday != null ? usdCompact(requiredToday) : "—"}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -540,46 +543,45 @@ export default function DashboardPage() {
 
             {/* funding‑deadline call‑out – colour depends on days until *unsettled* date */}
             {(() => {
-              const msPerDay        = 86_400_000;
-              const cutOff          = unsettledDate ? new Date(`${unsettledDate}T00:00:00Z`) : null;
-              const fundingDeadline = cutOff ? new Date(cutOff.getTime() - 90 * msPerDay) : null;
-              const daysToUnsettled = cutOff ? Math.ceil((cutOff.getTime() - Date.now()) / msPerDay) : null;
+              const msPerDay = 86_400_000;
 
-              /* ------- badge colour logic (days *to unsettled*) ---------------- */
-              let badgeColour = "bg-red-600";
-              if (daysToUnsettled != null) {
-                if (daysToUnsettled > 120)      badgeColour = "bg-green-600";
-                else if (daysToUnsettled > 90)  badgeColour = "bg-yellow-400 text-black";
-              }
+              /* 1️⃣ find the calendar row that matches the selected dealing date */
+              const row = dealRows.find((r) => r.dealing_date === unsettledDate);
+              const deadline = row ? new Date(`${row.submission_date}T00:00:00Z`) : null;
 
-              /* ------- date colour / emphasis (only the 90–120 bracket goes red) */
-              let dateClass = "font-bold text-m md:text-2xl text-green";            // default: bold black
-              if (daysToUnsettled != null && daysToUnsettled <= 120 && daysToUnsettled >= 90) {
-                dateClass = "font-extrabold text-xl md:text-2xl text-red-600";          // obvious red
+              /* 2️⃣ how many days from **today** to that deadline? */
+              const daysLeft = deadline ? Math.ceil((deadline.getTime() - Date.now()) / msPerDay) : null;
+
+              /* 3️⃣ badge colour rules */
+              let badgeColour = "bg-green-600";
+              if (daysLeft != null) {
+                if (daysLeft <= 0)           badgeColour = "bg-red-600";
+                else if (daysLeft <= 30)     badgeColour = "bg-yellow-400 text-black";
               }
 
               return (
                 <div className="border rounded-md p-3 flex flex-col justify-between lg:flex-row lg:items-center">
                   <div>
-                    {/* added mb‑1 for spacing */}
-                    <p className="font-medium leading-none mb-1">Funding Application Deadline</p>
+                    <p className="font-medium leading-none mb-1 flex items-center gap-1">
+                      <Clock3 className="w-3.5 h-3.5" />
+                      Funding&nbsp;Application&nbsp;Deadline
+                    </p>
 
-                    {/* apply dynamic colour class */}
-                    <p className={`text-xs ${dateClass}`}>
-                      Apply by:&nbsp;
-                      {fundingDeadline
-                        ? fundingDeadline.toLocaleDateString("en-US", {
-                            year:  "numeric",
-                            month: "numeric",
-                            day:   "numeric",
+                    <p className="text-xs font-semibold">
+                      Apply&nbsp;by:&nbsp;
+                      {deadline
+                        ? deadline.toLocaleDateString("en-US", {
+                            month : "long",
+                            day   : "numeric",
+                            year  : "numeric",
                           })
                         : "—"}
                     </p>
                   </div>
 
-                  {daysToUnsettled != null && (
+                  {daysLeft != null && (
                     <Badge className={`text-xs px-2 py-0.5 ${badgeColour}`}>
-                      {daysToUnsettled}&nbsp;days
+                      {daysLeft}&nbsp;days
                     </Badge>
                   )}
                 </div>
@@ -628,10 +630,12 @@ export default function DashboardPage() {
       </CardContent>
       </Card>
 
-      {/* footer */}
+      {/* footer – avoid hydration mismatch */}
       <footer className="flex justify-between text-sm text-muted-foreground">
         {/* <span>Last file processed: NAV_2024_12_03.xlsx • 2 errors found</span> */}
-        <span>Last updated: {new Date().toLocaleString()}</span>
+        <span suppressHydrationWarning>
+          Last&nbsp;updated:&nbsp;{clientTime || "—"}
+        </span>
       </footer>
     </div>
   );

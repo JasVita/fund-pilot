@@ -4,12 +4,7 @@ const requireRole = require("../middlewares/requireRole");
 // const { requireCompanyBody } = require("../middlewares/requireCompany");
 const requireAdmin = require("../middlewares/requireAdmin");
 const requireSuper  = require("../middlewares/requireSuper");
-const {
-  unsettledRedemption,
-  netCash,
-  navVsDiv,
-  aumHistory
-} = require("../controllers/dashboard.controller");
+const { unsettledRedemption, netCash, navVsDiv, aumHistory, dealingCalendar } = require("../controllers/dashboard.controller");
 
 const router = express.Router();
 
@@ -18,6 +13,7 @@ router.get("/dashboard/unsettled-redemption", requireAuth, requireRole, unsettle
 router.get("/dashboard/net-cash", requireAuth, requireRole, netCash);
 router.get("/dashboard/nav-value-totals-vs-div", requireAuth, requireRole, navVsDiv);
 router.get("/dashboard/aum",                   requireAuth, requireRole, aumHistory);
+router.get("/dashboard/dealing-calendar",      requireAuth, requireRole, dealingCalendar);
 
 /* ── admin-only extras ────────────────────────────────── */
 router.get("/api/admin/dashboard",  requireAuth, requireAdmin, (req, res) => {

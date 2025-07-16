@@ -24,7 +24,8 @@ exports.unsettledRedemption = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
- /*  GET  /dashboard/net-cash
+
+/*  GET  /dashboard/net-cash
   *  curl -H "Cookie: fp_jwt=$JWT" "http://localhost:5103/dashboard/net-cash?acct=233569-20010&fund_id=1"
   *  Params:
   *    ?acct=233569-20010   (optional – default below)
@@ -172,6 +173,46 @@ exports.aumHistory = async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error("aumHistory:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/* -----------------------------------------------------------
+ * GET  /dashboard/dealing-calendar?fund_id=2
+ * curl -H "Cookie: fp_jwt=$JWT" "http://localhost:5103/dashboard/dealing-calendar?fund_id=2"
+ * Calls: get_dealing_calendar($1)
+ * Returns: [{ dealing_date:"2025-07-02", daily_amount:706482.85 }, …]
+ * -----------------------------------------------------------
+ */
+exports.dealingCalendar = async (req, res) => {
+  const user   = req.auth;
+  const fundId = req.query.fund_id ? Number(req.query.fund_id) : null;
+
+  console.log(
+    "[dealingCalendar] user=%s role=%s fund=%s",
+    user.email,
+    user.role,
+    fundId ?? "ALL"
+  );
+
+  // quick sanity‐check – avoids sending “NaN” to the DB
+  if (req.query.fund_id && !Number.isFinite(fundId)) {
+    return res.status(400).json({ error: "Invalid fund_id" });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         to_char(dealing_date,   'YYYY-MM-DD')       AS dealing_date,
+         ROUND(daily_amount::numeric, 2)             AS daily_amount,
+         to_char(submission_date,'YYYY-MM-DD')       AS submission_date
+       FROM get_dealing_calendar($1);`,
+      [fundId]   // null → ALL funds (per fn definition)
+    );
+
+    res.json(rows);   // ⇐ 200 JSON array
+  } catch (err) {
+    console.error("dealingCalendar:", err);
     res.status(500).json({ error: err.message });
   }
 };
