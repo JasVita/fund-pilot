@@ -5,6 +5,18 @@
 
 import PptxGenJS from "pptxgenjs";
 
+declare module "pptxgenjs" {
+  interface TableOptions {
+    autoPageSlideCallback?: (slide: PptxGenJS.Slide, idx: number) => void;
+    autoPageSlideMaster?: string;
+  }
+
+  interface Presentation {
+    slides: PptxGenJS.Slide[];
+  }
+}
+
+
 /* ---------- data models ------------------------------------ */
 interface TableRowData {
   productName:          string;
@@ -27,9 +39,17 @@ interface ReportData {
 }
 
 /* ---------- helper type for table cells -------------------- */
+type CellOpts = {
+  color?: string;
+  bold?: boolean;
+  align?: "left" | "center" | "right";
+  fill?: string;             // ← NEW: background-fill colour
+};
+
 type StyledCell = {
   text: string | number;
-  options?: {
+  options?: 
+  CellOpts & {
     color?: string;
     bold?: boolean;
     align?: "left" | "center" | "right";   // <- added so {align:"center"} is legal
@@ -53,7 +73,21 @@ const fmtMoney = (v: string) => {
     ? ""
     : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
+
 const fmtPercent = (v: string | undefined) => v && v.trim() !== "" ? `${v}%` : "";
+
+function profitCell(raw: string | undefined): StyledCell {
+  const pct = (raw ?? "").trim();
+  const num = parseFloat(pct.replace(/[+,％%]/g, ""));   // strip sign/% then cast
+  if (Number.isFinite(num) && num > 0) {
+    return {
+      text: `+${fmtPercent(pct)}`,              // prepend “+”
+      options: { color: "C00000", bold: true }, // bright-red & bold
+    };
+  }
+  return { text: fmtPercent(pct) };             // leave ≤0 / blank unchanged
+}
+
 /* ---------- cached fetch → base-64 helpers ----------------- */
 async function fetchAsDataURL(path: string, cacheKey: string): Promise<string> {
   const m = fetchAsDataURL as any;
@@ -69,6 +103,16 @@ async function fetchAsDataURL(path: string, cacheKey: string): Promise<string> {
   m[cacheKey] = dataUrl;
   return dataUrl;
 }
+
+/* ──────────────────────────────────────────────────────────────
+ * Helper that decorates ONE slide with editable header / footer
+ * ────────────────────────────────────────────────────────────── */
+function decorateTableSlide(slide: PptxGenJS.Slide, logoData: string) {
+  slide.addText("已投資產品總結", { x:0.4, y:0.3, w:"50%", h:0.5, fontFace:"DengXian", fontSize:24, bold:true });
+  slide.addImage({ data: logoData, x:8.0, y:0.0, w:2.0, h:0.85 });
+  slide.addText("存續報告僅供內部參考使用投資人實際數字以月結單為准", { x:0.4, y:4.95, w:"50%", h:0.35, fontFace:"DengXian", fontSize:7 });
+}
+
 
 /* ---------- static assets ---------------------------------- */
 const getCoverImg       = () => fetchAsDataURL("/cover-bg.png",            "cover");
@@ -132,93 +176,85 @@ export async function generateInvestmentPpt(data: ReportData) {
     });
   }
 
-  /* 4. master for table pages -------------------------------- */
-  pptx.defineSlideMaster({
-    title: "TableMaster",
-    background: { color:"FFFFFF" },
-    objects: [
-      { text:{
-          text:"已投資產品總結",
-          options:{ x:0.4, y:0.3, w:"50%", h:0.5, fontSize:24, bold:true, fontFace:"DengXian" },
-        }},
-      { image:{ data:logoTable, x:8.0, y:0.0, w:2.0, h:0.85 } },
-      { text:{
-          text:"存續報告僅供內部參考使用投資人實際數字以月結單為准",
-          options:{ x:0.4, y:4.9, w:"30%", h:0.4, fontSize:7, fontFace:"DengXian" },
-        }},
-    ],
-  });
+  /* 4. helper that lays the table, then decorates every slide ---- */
+  function addPaginatedTable(
+    pptx: PptxGenJS,
+    rows: (string | number | StyledCell)[][],
+    logoData: string
+  ) {
+    // remember where the slide list starts
+    const firstSlideIndex = (pptx as any).slides.length;
 
-  /* 5. table slide(s) ---------------------------------------- */
+    // ---------- 1️⃣  draw the (possibly long) table -------------
+    const first = pptx.addSlide();
+
+    first.addTable(rows as any, {
+      x: 0.45,
+      y: 0.75,
+      h: 4.8,                              // 0.75 ➜ 5.55 keeps footer clear
+      colW: [2.4, 0.8, 0.8, 1.2, 1.2, 1.2, 1.3],
+
+      fontSize: 10,
+      fontFace: "DengXian",
+      align: "center",
+      valign: "middle",
+      rowH: 0.32,
+      fill: "E8E8E8",
+      margin: 0.03,
+      border: { pt: 1, color: "FFFFFF" },
+
+      headerRow: true,
+      columnHeaderBold: true,
+      columnHeaderFill: "D0CECE",
+      color: "000000",
+
+      // table slide background formatting
+      autoPage: true,
+      autoPageRepeatHeader: true,
+      autoPageSlideStartY: 0.75,
+    } as any);
+
+    // ---------- 2️⃣  walk every slide we just created ------------
+    for (let i = firstSlideIndex; i < (pptx as any).slides.length; i++) {
+      decorateTableSlide((pptx as any).slides[i], logoData);
+    }
+  }
+
+  /* 5. build the rows and call the helper ----------------------- */
   {
-    const slide = pptx.addSlide({ masterName:"TableMaster" });
-
-    /* column headers (7 cols) */
     const headerRow: StyledCell[] = [
-      { text:"產品名稱(開放式基金)", options:{ bold:true } },
-      { text:"認購時間",              options:{ bold:true } },
-      { text:"數據截止",              options:{ bold:true } },
-      { text:"認購金額(USD)",         options:{ bold:true } },
-      { text:"市值",                  options:{ bold:true } },
-      { text:"含息後總額",            options:{ bold:true } },
-      { text:"估派息後盈虧(%)",       options:{ bold:true } },
+      { text: "產品名稱(開放式基金)", options: { bold: true, fill: "D0CECE" } },
+      { text: "認購時間",              options: { bold: true, fill: "D0CECE" } },
+      { text: "數據截止",              options: { bold: true, fill: "D0CECE" } },
+      { text: "認購金額(USD)",         options: { bold: true, fill: "D0CECE" } },
+      { text: "市值",                  options: { bold: true, fill: "D0CECE" } },
+      { text: "含息後總額",            options: { bold: true, fill: "D0CECE" } },
+      { text: "估派息後盈虧(%)",       options: { bold: true, fill: "D0CECE" } },
     ];
 
-    const rows: (string | number | StyledCell)[][] = [headerRow];
-    
+    const allRows: (string | number | StyledCell)[][] = [headerRow];
     data.tableData.forEach(r => {
-      rows.push([
+      allRows.push([
         r.productName ?? "",
         fmtYYYYMM(r.subscriptionTime),
         fmtYYYYMM(r.dataDeadline),
         fmtMoney(r.subscriptionAmount),
         fmtMoney(r.marketValue),
         fmtMoney(to2dp(r.totalAfterDeduction)),
-        { text: fmtPercent(r.estimatedProfit), options: { color: "C00000", bold: true } },
+        profitCell(r.estimatedProfit),
       ]);
     });
 
-    slide.addTable(rows as any, {
-        /* position */
-        x: 0.4,
-        y: 0.75,
-        /* give the table a max height — everything that doesn’t fit
-            within these 4.6 inches will be pushed to a fresh slide */
-        h: 5.0,              // ←  adjust to whatever margin you want
-        colW: [2.4, 0.8, 0.8, 1.2, 1.2, 1.2, 1.3],
-
-        /* cell defaults */
-        fontSize: 10,
-        fontFace: "DengXian",
-        align: "center",
-        valign: "middle",
-        rowH: 0.32,
-        fill: "F2F2F2",
-        margin: 0.03,
-        border: { pt: 1, color: "FFFFFF" },
-
-        /* paging rules */
-        autoPage: true,
-        autoPageSlideStartY: 0.75,   // top boundary
-        autoPageSlideEndY: 5.55,     // bottom boundary of each slide (≈¼-inch margin)
-        autoPageMaster: "TableMaster",
-        autoPageRepeatHeader: true,  // repeat header row
-        rowHeader: true,             // repeat the *left* column (fund name) too
-
-        /* header styling */
-        headerRow: true,
-        columnHeaderBold: true,
-        columnHeaderFill: "D0CECE",
-        color: "000000",
-        } as any);
-
+    // single call – pptxgenjs paginates, we overlay afterwards
+    addPaginatedTable(pptx, allRows, logoTable);
   }
+
 
   /* 6. disclaimer -------------------------------------------- */
   {
     const slide = pptx.addSlide();
     slide.background = { data:bgCover };
-    slide.addImage({ data:logoDisc, x:7.2, y:0.4, w:2.16, h:0.8 });
+    slide.addImage({ data:logoDisc, x:7.2, y:0.4, w:2.43, h:0.9 }); // w:h = 2.7:1
 
     const disclaimer =
       "Disclaimer: This document is confidential and is intended solely for its recipient(s) only. Any unauthorized use of the contents is expressly prohibited. If you are not the intended recipient, you are hereby notified that any use, distribution, disclosure, dissemination or copying of this document is strictly prohibited. Annum Capital, its group companies, subsidiaries and affiliates and their content provider(s) shall not be responsible for the accuracy or completeness of this document or information herein. This document is for information purpose only. It is not intended as an offer or solicitation for the purchase or sale of any financial instrument or as an official confirmation of any transaction. All data and other information are not warranted as to completeness or accuracy and subject to change without notice. Liabilities for any damaged caused by this document will not be accepted.";
