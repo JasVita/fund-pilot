@@ -137,16 +137,35 @@ router.post("/api/auth/signup-email", async (req, res) => {
 });
 
 /* ───────────────── Email LOGIN ───────────────── */
+// router.post("/api/auth/login-email", async (req, res) => {
+//   console.log("[login-email] body:", req.body, "[login-email] incoming pwd:", req.body.password);
+
+//   const { email, password } = req.body;
+//   if (!email || !password) return res.status(400).json({ error: "E-mail & password required" });
+
+//   const user = await verifyLogin(email, password);
+//   if (!user) return res.status(401).json({ error: "Invalid credentials" });
+
+//   issueJwtAndSetCookie(res, user);
+// });
+
 router.post("/api/auth/login-email", async (req, res) => {
-  console.log("[login-email] body:", req.body, "[login-email] incoming pwd:", req.body.password);
+  const { email = "", password = "" } = req.body;
+  if (!email || !password)
+    return res.status(400).json({ error: "E-mail & password required" });
 
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: "E-mail & password required" });
+  /* 1️⃣ does the account exist? */
+  const account = await findByEmail(email);
+  if (!account)
+    return res.status(404).json({ error: "No account found - please sign up." });
 
-  const user = await verifyLogin(email, password);
-  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+  /* 2️⃣ password mismatch? */
+  const verified = await verifyLogin(email, password);   // bcrypt or plain
+  if (!verified)
+    return res.status(401).json({ error: "Wrong password - please try again." });
 
-  issueJwtAndSetCookie(res, user);
+  /* 3️⃣ success */
+  issueJwtAndSetCookie(res, account);
 });
 
 /* ───────────────── Shared helper ───────────────── */

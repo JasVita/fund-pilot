@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext, PaginationLink } from "@/components/ui/pagination";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { KPICard } from "./KPICard";
@@ -242,28 +243,46 @@ export default function DashboardPage() {
   /* Outstanding Redemptions surplus helpers */
   const surplus      = latestCash != null && requiredToday != null ? latestCash - requiredToday : null;
   const surplusLabel = surplus != null && surplus < 0 ? "Deficit" : "Surplus";
-  const surplusClass = surplus != null && surplus < 0
-    ? "text-red-600 font-semibold"   // negative → bold red
-    : "text-green-600";              // positive → green
+  const surplusClass = surplus != null && surplus < 0 ? "text-red-600 font-semibold" : "text-green-600";
+  
+  /* ──────────────────────────────────────────────────────────
+  *  Redemption list + paging helpers
+  * ────────────────────────────────────────────────────────── */
 
-  /* -------- Top-5 redemption rows ----------------------------- */
-  const top5Redemptions = useMemo(() => {
+  /* 1️⃣ build a FULLY-sorted list (no slicing here!) */
+  const allRedemptions = useMemo(() => {
     if (!redempRows.length || !latestCash) return [];
 
     return [...redempRows]
       .sort((a, b) => Math.abs(+b.amount) - Math.abs(+a.amount))
-      .slice(0, 5)
       .map((r) => {
-        const amountAbs = Math.abs(+r.amount);
-        const pctOfCash = +((amountAbs / latestCash) * 100).toFixed(1);
+        const amountAbs  = Math.abs(+r.amount);
+        const pctOfCash  = +((amountAbs / latestCash) * 100).toFixed(1);
         return {
-          investor: r.investor_name,
-          amount: amountAbs,
-          percentage: pctOfCash,
-          date: r.trade_date.slice(0, 7),
+          investor   : r.investor_name,
+          amount     : amountAbs,
+          percentage : pctOfCash,
+          date       : r.trade_date.slice(0, 7), // “YYYY-MM”
         };
       });
   }, [redempRows, latestCash]);
+
+  /* 2️⃣ paging state */
+  const PAGE_SIZE = 5;
+  const [page, setPage] = useState(1);
+
+  /* 3️⃣ return only the current slice */
+  const pagedRedemptions = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return allRedemptions.slice(start, start + PAGE_SIZE);
+  }, [page, allRedemptions]);
+
+  /* 4️⃣ total pages */
+  const pageCount = Math.ceil(allRedemptions.length / PAGE_SIZE);
+  const topLabelCount = allRedemptions.length;
+
+  /* 5️⃣ whenever data refreshes, reset to first page */
+  useEffect(() => { setPage(1); }, [allRedemptions]);
 
   /* -------- Net-cash line chart ----------------------------- */
   const netCashChart = useMemo(() => {
@@ -590,42 +609,67 @@ export default function DashboardPage() {
 
           </div>
 
-          {/* ──────────────  RIGHT : top-5 list  ─────────────── */}
+          {/* ──────────────  RIGHT : top‑5 list  ─────────────── */}
           <div className="lg:pl-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="font-medium">Top&nbsp;5&nbsp;Redemption&nbsp;Requests</h4>
+              <h4 className="font-medium">Top&nbsp;{topLabelCount}&nbsp;Redemption&nbsp;Requests</h4>
 
-              {/* same badge component you had in the header */}
               <Badge variant="outline" className="text-destructive border-destructive">
                 {redempPct ? `${redempPct.toFixed(1)}% of Net Cash` : "—"}
               </Badge>
             </div>
 
-            {top5Redemptions.map((row, idx) => (
-              <div key={`${row.investor}-${idx}`} className="space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span className="font-medium flex items-center gap-2">
-                    {row.investor}
-                    <Badge
-                      variant="secondary"
-                      className="text-xs px-2 py-0.5"
-                    >
-                      {row.date}
-                    </Badge>
-                  </span>
+            {/* ▼ use pagedRedemptions, not the old variable */}
+            {/* <div className="flex-1 space-y-1 overflow-y-auto"> */}
+              {pagedRedemptions.map((row, idx) => (
+                <div key={`${row.investor}-${idx}`} className="space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium flex items-center gap-2">
+                      {row.investor}
+                      <Badge variant="secondary" className="text-xs px-2 py-0.5">{row.date}</Badge>
+                    </span>
 
-                  <span className="text-destructive">
-                    {usdCompact(row.amount)} ({row.percentage}%)
-                  </span>
+                    <span className="text-destructive">{usdCompact(row.amount)} ({row.percentage}%)</span>
+                  </div>
+
+                  <Progress value={row.percentage} className="h-2 [&>div[role=progressbar]]:bg-blue-500" />
                 </div>
+              ))}
+            {/* </div> */}
 
-                <Progress
-                  value={row.percentage}
-                  className="h-2 [&>div[role=progressbar]]:bg-blue-500"
-                />
-              </div>
-            ))}
+            {/* paging control */}
+            {pageCount > 1 && (
+            <Pagination className="pt-3 justify-center mt-auto">  {/* 2️⃣ mt-auto pins it */}
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={page === 1 ? undefined : () => setPage(p => Math.max(1, p - 1))}
+                    aria-disabled={page === 1}
+                    className={page === 1 ? "cursor-not-allowed opacity-50" : ""}
+                  />
+                </PaginationItem>
+
+                {/* plain text, no box */}
+                <PaginationItem>
+                  <span className="mx-3 text-xs select-none">
+                    {page} / {pageCount}
+                  </span>
+                </PaginationItem>
+
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={page === pageCount ? undefined : () => setPage(p => Math.min(pageCount, p + 1))}
+                    aria-disabled={page === pageCount}
+                    className={page === pageCount ? "cursor-not-allowed opacity-50" : ""}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+
+
           </div>
+
         </div>
       </CardContent>
       </Card>

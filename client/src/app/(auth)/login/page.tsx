@@ -39,35 +39,49 @@ export default function LoginPage() {
     if (r.ok) {
       await refresh();
       router.push("/dashboard");
-    } else {
-      const { error } = await r.json();
-      setErr(error ?? "Request failed");
+      return;
+    }
+
+    switch (r.status) {
+      case 404:
+        setErr("We couldn't find an account with that e-mail - try signing up.");
+        break;
+      case 401:
+        setErr("Incorrect password - please try again.");
+        break;
+      default: {
+        const { error } = await r.json().catch(() => ({}));
+        setErr(error ?? "Login failed - please try again.");
+      }
     }
   }
   return (
-    <div className="grid min-h-screen grid-cols-1 md:grid-cols-2">
+    /* ------------------------------------------------------------------ *
+    *  LEFT‑HAND HERO PANE ( changes marked ⬅️ )
+    * ------------------------------------------------------------------ */
+    <div className="
+      grid min-h-screen grid-cols-1
+      md:[grid-template-columns:minmax(520px,1fr)_1fr]   /* ⬅️ widen min width a bit */
+    ">
       {/* Left Hero Section */}
-      <div className="relative hidden md:block bg-[#091728]">
+      <div className="relative hidden md:block bg-[#091728] overflow-hidden">  {/* ⬅️ add overflow-hidden */}
         <img
           src="/Fund-Pilot-Login-cover.png"
           alt="cover"
           className="absolute inset-0 h-full w-full object-cover opacity-30"
         />
-        {/* <div className="relative z-10 flex h-full flex-col justify-center px-12 py-16 text-white"> */}
-        <div className="relative z-10 flex h-full items-center justify-center">
-          <div className="w-[70%] text-white">
 
-            {/* <Image src="/fund-pilot-logo-white.png" alt="Fund Pilot Logo" width={120} height={48}/> */}
+        {/* content wrapper */}
+        <div className="relative z-10 flex h-full items-center justify-center px-8">
+          <div className="w-full max-w-3xl text-white">
+            <h1 className="text-3xl font-bold leading-tight whitespace-normal break-words">Automated&nbsp;Operations.&nbsp;Smarter&nbsp;Fund&nbsp;Management.</h1>
 
-            <h1 className="text-3xl font-bold leading-tight">
-              Automated Operations. Smarter Fund Management.
-            </h1>
             <ul className="mt-6 space-y-2 text-sm text-gray-200">
-              <li>Auto NAV reconciliation & return tracking</li>
-              <li>Real-time AUM and investor dashboards</li>
-              <li>Consolidated multi-fund reporting</li>
-              <li>KYC & client submission syncing</li>
-              <li>Excel/PDF data capture & onboarding</li>
+              <li>Auto&nbsp;NAV&nbsp;reconciliation&nbsp;&&nbsp;return&nbsp;tracking</li>
+              <li>Real-time&nbsp;AUM&nbsp;and&nbsp;investor&nbsp;dashboards</li>
+              <li>Consolidated&nbsp;multi-fund&nbsp;reporting</li>
+              <li>KYC&nbsp;&&nbsp;client&nbsp;submission&nbsp;syncing</li>
+              <li>Excel/PDF&nbsp;data&nbsp;capture&nbsp;&&nbsp;onboarding</li>
             </ul>
           </div>
         </div>
@@ -94,7 +108,7 @@ export default function LoginPage() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Password</label>
-
+            
             <div className="relative">
               <input
                 type={showPwd ? "text" : "password"}
@@ -115,11 +129,13 @@ export default function LoginPage() {
                 {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
           </div>
           <button type="submit" className="w-full bg-black text-white py-2 rounded hover:bg-gray-800">{mode === "login" ? "Login" : "Sign up"}</button>
           <button type="button" onClick={() => setMode(m => (m === "login" ? "signup" : "login"))} className="w-full bg-[#0666CC] text-white py-2 rounded hover:bg-[#0552A3]" >
             {mode === "login" ? "Sign up with Email" : "Back to Login"}
           </button>
+
         </form>
         
         {/* Separator */}
@@ -131,8 +147,8 @@ export default function LoginPage() {
 
         {/* Google Login Button */}
         <div className="space-y-6 w-full max-w-sm mx-auto">
-          <a href={GOOGLE_LOGIN} className="block w-full rounded-md bg-black py-3 text-center text-white transition hover:bg-gray-800" >Sign in with Google </a>
-          <a href={GOOGLE_SIGNUP} className="block w-full rounded-md bg-[#0666CC] py-3 text-center text-white transition hover:bg-[#0552A3]" >Sign up with Google </a>
+          <a href={GOOGLE_LOGIN} className="block w-full rounded-md bg-black py-3 text-center text-white transition hover:bg-gray-800" >Sign&nbsp;in&nbsp;with&nbsp;Google </a>
+          <a href={GOOGLE_SIGNUP} className="block w-full rounded-md bg-[#0666CC] py-3 text-center text-white transition hover:bg-[#0552A3]" >Sign&nbsp;up&nbsp;with&nbsp;Google </a>
         </div>
 
         

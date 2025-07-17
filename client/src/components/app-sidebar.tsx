@@ -199,7 +199,7 @@ export function AppSidebar(
           {!collapsed && (
             <div className="leading-tight">
               <h1 className="font-bold text-base">Fund&nbsp;Pilot</h1>
-              <p className="text-xs text-muted-foreground">Enterprise</p>
+              <p className="text-xs text-muted-foreground">Annum&nbsp;Capital</p>
             </div>
           )}
         </div>
