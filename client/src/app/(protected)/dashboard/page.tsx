@@ -124,17 +124,29 @@ export default function DashboardPage() {
           fetch(`${API_BASE}/dashboard/dealing-calendar?${qp}`, { credentials:"include" }),
 
         ]);
-        /* --- Net-cash ---------------------------------------- */
+        /* --- Net‑cash -------------------------------------------- */
         const ncJson = await ncRes.json();
         if (Array.isArray(ncJson.history)) {
           setNetCashHistory(ncJson.history);
-          const opts = ncJson.history.map((r:any) =>
-            new Date(r.statement_date).toLocaleString("en-US",
-              { month:"long", year:"numeric", timeZone:"UTC" })
+
+          // ✅  make the type explicit so opts is **string[]**
+          const opts: string[] = Array.from(
+            new Set(
+              ncJson.history.map((r: { statement_date: string }) =>
+                new Date(r.statement_date).toLocaleString("en-US", {
+                  month: "long",
+                  year : "numeric",
+                  timeZone: "UTC",
+                }),
+              ),
+            ),
           );
+
           setMonthOptions(opts);
-          if (!monthFilter && opts[0]) setMonthFilter(opts[0]);
+          if (!monthFilter && opts.length)
+            setMonthFilter(opts[0]);
         }
+
 
         /* --- Unsettled redemptions --------------------------- */
         const urJson = await urRes.json();
@@ -376,8 +388,8 @@ export default function DashboardPage() {
                           <SelectValue placeholder="Month" />
                         </SelectTrigger>
                         <SelectContent className="max-h-80 overflow-y-auto">
-                          {monthOptions.map((m) => (
-                            <SelectItem key={m} value={m}>{m}</SelectItem>
+                          {monthOptions.map((m, idx) => (
+                            <SelectItem key={`${m}-${idx}`} value={m}>{m}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
