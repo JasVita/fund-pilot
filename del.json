@@ -1,0 +1,165 @@
+{
+    "rows": [
+        {
+            "fund_id": 1,
+            "missing_month": "2025-06",
+            "frequency": "monthly",
+            "missing_quarter": null
+        },
+        {
+            "fund_id": 1,
+            "missing_month": "2025-05",
+            "frequency": "monthly",
+            "missing_quarter": null
+        },
+        {
+            "fund_id": 1,
+            "missing_month": "2025-04",
+            "frequency": "monthly",
+            "missing_quarter": null
+        },
+        {
+            "fund_id": 1,
+            "missing_month": "2025-03",
+            "frequency": "monthly",
+            "missing_quarter": null
+        }
+    ]
+}
+
+{
+    "rows": [
+        {
+            "fund_id": 2,
+            "missing_month": "2025-06",
+            "frequency": "monthly",
+            "missing_quarter": null
+        },
+        {
+            "fund_id": 2,
+            "missing_month": "2025-05",
+            "frequency": "monthly",
+            "missing_quarter": null
+        },
+        {
+            "fund_id": 2,
+            "missing_month": "2025-04",
+            "frequency": "monthly",
+            "missing_quarter": null
+        }
+    ]
+}
+{
+    "rows": [
+        {
+            "fund_id": 3,
+            "missing_month": "2025-06",
+            "frequency": "quarterly",
+            "missing_quarter": "2025-Q2"
+        }
+    ]
+}
+
+{
+    "rows": [
+        {
+            "fund_id": 4,
+            "missing_month": "2025-06",
+            "frequency": "monthly",
+            "missing_quarter": null
+        },
+        {
+            "fund_id": 4,
+            "missing_month": "2025-05",
+            "frequency": "monthly",
+            "missing_quarter": null
+        },
+        {
+            "fund_id": 4,
+            "missing_month": "2025-04",
+            "frequency": "monthly",
+            "missing_quarter": null
+        },
+        {
+            "fund_id": 4,
+            "missing_month": "2025-03",
+            "frequency": "monthly",
+            "missing_quarter": null
+        }
+    ]
+}
+
+{
+    "rows": [
+        {
+            "fund_id": 5,
+            "missing_month": "2025-06",
+            "frequency": "quarterly",
+            "missing_quarter": "2025-Q2"
+        },
+        {
+            "fund_id": 5,
+            "missing_month": "2025-03",
+            "frequency": "quarterly",
+            "missing_quarter": "2025-Q1"
+        },
+        {
+            "fund_id": 5,
+            "missing_month": "2024-03",
+            "frequency": "quarterly",
+            "missing_quarter": "2024-Q1"
+        },
+        {
+            "fund_id": 5,
+            "missing_month": "2023-12",
+            "frequency": "quarterly",
+            "missing_quarter": "2023-Q4"
+        },
+        {
+            "fund_id": 5,
+            "missing_month": "2023-03",
+            "frequency": "quarterly",
+            "missing_quarter": "2023-Q1"
+        }
+    ]
+}
+{
+    "rows": [
+        {
+            "fund_id": 6,
+            "missing_month": "2025-06",
+            "frequency": "quarterly",
+            "missing_quarter": "2025-Q2"
+        },
+        {
+            "fund_id": 6,
+            "missing_month": "2025-03",
+            "frequency": "quarterly",
+            "missing_quarter": "2025-Q1"
+        },
+        {
+            "fund_id": 6,
+            "missing_month": "2024-03",
+            "frequency": "quarterly",
+            "missing_quarter": "2024-Q1"
+        },
+        {
+            "fund_id": 6,
+            "missing_month": "2023-12",
+            "frequency": "quarterly",
+            "missing_quarter": "2023-Q4"
+        },
+        {
+            "fund_id": 6,
+            "missing_month": "2023-09",
+            "frequency": "quarterly",
+            "missing_quarter": "2023-Q3"
+        },
+        {
+            "fund_id": 6,
+            "missing_month": "2023-03",
+            "frequency": "quarterly",
+            "missing_quarter": "2023-Q1"
+        }
+    ]
+}
