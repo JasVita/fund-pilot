@@ -141,7 +141,7 @@ const getLogoTableBlack = () => fetchAsDataURL("/logo-black-table.png",    "logo
 const getLogoDisclaimer = () => fetchAsDataURL("/logo-white-disclaimer.png","logoDisc");
 
 /* ---------- optional API call ------------------------------ */
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
 async function fetchFormattedName(name: string): Promise<string> {
   const url = `${API_BASE}/investors/format-name?name=${encodeURIComponent(name.trim())}`;
 

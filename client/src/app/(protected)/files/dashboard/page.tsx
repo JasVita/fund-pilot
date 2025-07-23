@@ -14,13 +14,25 @@ import { Tabs, TabsList, TabsTrigger, TabsContent, }                        from
 import { Banknote, FileWarning, FileText, AlertTriangle, }                  from "lucide-react";
 
 /* ─── API helpers ───────────────────────────────────────── */
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
 
 /* ---------- 2.  row shapes use string for numeric fields  */
 type Fund = { fund_id:number; fund_name:string };
 
-type BankMiss = { fund_id:number; fund_name:string; month:string };
-type BankVer  = BankMiss & { diff:string };
+type BankMiss = {
+  fund_id: number;
+  fund_name?: string;
+  missing_month: string;
+  frequency: "monthly" | "quarterly";
+  missing_quarter: string | null;
+};
+
+type BankVer = {
+  fund_id: number;
+  fund_name: string;
+  month: string;
+  diff: string;
+};
 
 type InvMiss  = { 
   fund_id:number; fund_name?:string; 
@@ -71,6 +83,20 @@ function SummaryCard({ icon,label,count,kind }:{
     </Card>
   );
 }
+
+/* shows one “missing bank statement” row */
+const MissingBankRow = ({ r }: { r: BankMiss }) => (
+  <div className="grid grid-cols-[3fr_1fr_1fr_1fr_1fr] py-1 items-center">
+    <span>{r.fund_name ?? r.fund_id}</span>
+    <span>{r.missing_month}</span>
+    <Badge variant="destructive" className="w-fit text-xs">
+      Missing
+    </Badge>
+    <span className="capitalize">{r.frequency}</span>
+    <span>{r.missing_quarter ?? "—"}</span>
+  </div>
+);
+
 
 /* ─── generic row renderers to avoid duplication ───────── */
 const MissingRow = ({a,b}:{a:string;b:string}) => (
@@ -189,12 +215,25 @@ export default function FilesDashboard() {
 
           {/* Missing – Bank */}
           <Card>
-            <CardHeader><CardTitle className="flex gap-2 items-center"><Banknote className="w-5 h-5"/>Bank Statements</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="flex gap-2 items-center">
+                <Banknote className="w-5 h-5" /> Bank Statements
+              </CardTitle>
+            </CardHeader>
+
             <CardContent className="space-y-2 text-sm">
-              <Separator/>
-              <div className="grid grid-cols-3 font-medium"><span>Fund Name</span><span>Date</span><span>Status</span></div>
-              <Separator/>
-              {bankMiss.map((r,i)=><MissingRow key={i} a={r.fund_name} b={r.month}/>)}
+              <Separator />
+              <div className="grid grid-cols-[3fr_1fr_1fr_1fr_1fr] font-medium">
+                <span>Fund Name</span>
+                <span>Missing Month</span>
+                <span>Status</span>
+                <span>Frequency</span>
+                <span>Quarter</span>
+              </div>
+              <Separator />
+              {bankMiss.map((r, i) => (
+                <MissingBankRow key={i} r={r} />
+              ))}
             </CardContent>
           </Card>
 
