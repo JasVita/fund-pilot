@@ -7,7 +7,7 @@ export const TABLE_DOCS = {
 
 companies: `
 Purpose  : Tenant master. One row = one paying client / legal entity.
-Grain    : (id) – surrogate PK, never changes.
+Grain    : (id) - surrogate PK, never changes.
 Columns  :
   • id    (serial PK)
   • name  (text UNIQUE)
@@ -17,14 +17,14 @@ Business Notes :
 
 users: `
 Purpose  : Authentication & RBAC per tenant.
-Grain    : (id) – one row per human user.
+Grain    : (id) - one row per human user.
 Columns  :
   • id             (serial PK)
   • company_id     (int FK → companies.id)
-  • google_id      (text NULL)        – Google-SSO subject
+  • google_id      (text NULL)        - Google-SSO subject
   • email          (text UNIQUE)
-  • password_hash  (text NULL)        – NULL if SSO-only
-  • role           (text)             – 'admin' | 'ops' | 'viewer'
+  • password_hash  (text NULL)        - NULL if SSO-only
+  • role           (text)             - 'admin' | 'ops' | 'viewer'
   • name, avatar   (text)
   • created_at, updated_at (timestamp DEFAULT now())
 Business Notes :
@@ -35,14 +35,14 @@ Business Notes :
 
 fundlist: `
 Purpose  : Canonical catalogue of funds for each tenant.
-Grain    : (id) – each row describes *one logical fund*.
+Grain    : (id) - each row describes *one logical fund*.
 Columns  :
   • id             (serial PK)
   • company_id     (int FK → companies.id)
-  • name           (text)         – Raw label as found in files
+  • name           (text)         - Raw label as found in files
   • currency       (char(3))
-  • fund_categories(text[])       – Canonical name(s) for UI / reports
-  • fund_id        (int)          – **Uniqueness rule:** one numeric value ⇒ one fund even if repeated across rows.
+  • fund_categories(text[])       - Canonical name(s) for UI / reports
+  • fund_id        (int)          - **Uniqueness rule:** one numeric value ⇒ one fund even if repeated across rows.
   • created_on     (timestamp DEFAULT now())
 Business Notes :
   • Because PDFs/Excels carry inconsistent “fund_name”, the ETL inserts
@@ -50,11 +50,11 @@ Business Notes :
 `,
 
 investor_fund_map: `
-Purpose  : Bridge table – which raw investor_name ever appeared in which fund_id.
+Purpose  : Bridge table - which raw investor_name ever appeared in which fund_id.
 Grain    : (investor_fund_id)
 Columns  :
   • investor_fund_id (serial PK)
-  • investor_name    (text)         – As in source file
+  • investor_name    (text)         - As in source file
   • fund_id          (int FK → fundlist.id)
   • created_on       (timestamp DEFAULT now())
 Business Notes :
@@ -64,12 +64,12 @@ Business Notes :
 
 investorlist: `
 Purpose  : De-duplicated investor master (cross-fund).
-Grain    : (compact_norm) – upper-case no-space fingerprint (UNIQUE).
+Grain    : (compact_norm) - upper-case no-space fingerprint (UNIQUE).
 Columns  :
   • id, company_id, created_on
-  • investor_name (text)   – Canonical spelling (latest snapshot)
-  • status        (text)   – 'active' | 'inactive'
-  • name_norm     (text)   – TOKEN-SORTED UPPER
+  • investor_name (text)   - Canonical spelling (latest snapshot)
+  • status        (text)   - 'active' | 'inactive'
+  • name_norm     (text)   - TOKEN-SORTED UPPER
   • compact_norm  (text UNIQUE)
 Business Notes :
   • Refreshed by **sync_investorlist()**:
@@ -79,9 +79,19 @@ Business Notes :
 `,
 
 v_fund_lookup: `
-Purpose  : Helper VIEW – quick fund_id → canonical fund_categories.
+Purpose  : Helper VIEW - quick fund_id → canonical fund_categories.
 Grain    : (fund_id).
-Columns  : fund_id · name (=fund_categories) · company_id
+Columns  :
+  • fund_id        (int)      - surrogate key, unique per fund
+  • fund_name      (text)     - raw legal name as found in source files
+  • fund_category  (text[])   - canonical label(s) for UI / reports
+
+SQL      :
+  CREATE OR REPLACE VIEW v_fund_lookup AS
+  SELECT  fund_id,
+          name                AS fund_name,
+          fund_categories     AS fund_category
+  FROM    fundlist;
 `,
 
 /* ─────────── ❸  Month-end NAV Snapshot ─────────── */
@@ -99,7 +109,7 @@ Business Notes :
 `,
 
 holdings_detail: `
-Purpose  : Raw investor positions inside a snapshot – no aggregation.
+Purpose  : Raw investor positions inside a snapshot - no aggregation.
 Grain    : (id) so duplicates are allowed.
 Columns  :
   • id (serial PK) · snapshot_id (FK) · class · investor_name
@@ -111,7 +121,7 @@ Business Notes :
 
 holdings_change: `
 Purpose  : Net ∆ units / NAV per investor between successive snapshots.
-Grain    : (id) – one row per investor per month with non-zero delta.
+Grain    : (id) - one row per investor per month with non-zero delta.
 Columns  :
   • id · fund_name (text) · fund_id (FK) · snapshot_date
   • investor_name · number_prev/now/delta · nav_prev/now/delta
@@ -149,11 +159,11 @@ Columns  :
   • id               (serial PK)  
   • statement_id     (int FK → fund_statement.id)  
   • amount           (numeric)          
-  • type             (text)             – 'DR' | 'CR' (was CHAR(2))  
+  • type             (text)             - 'DR' | 'CR' (was CHAR(2))  
   • value_date       (date)  
   • counterparty     (text)  
   • tran_description (text)  
-  • is_dividend      (bool DEFAULT false) – Flag set by **flag_dividends()**  
+  • is_dividend      (bool DEFAULT false) - Flag set by **flag_dividends()**  
   • name_norm        (text)  
   • compact_norm     (text)  
   • company_id       (int FK → companies.id)  
@@ -167,7 +177,7 @@ Business Notes :
 `,
 
 contract_notes: `
-Purpose  : Trade confirmations – one row per PDF order.
+Purpose  : Trade confirmations - one row per PDF order.
 Grain    : (id).
 Columns  :
   • id              (serial PK)  
@@ -175,7 +185,7 @@ Columns  :
   • investor_id     (text)  
   • investor_name   (text)  
   • class           (text)  
-  • trade_type      (text)            – subscription | redemption  
+  • trade_type      (text)            - subscription | redemption  
   • trade_date      (date)  
   • valuation_date  (date)  
   • shares          (numeric)  
@@ -183,7 +193,7 @@ Columns  :
   • amount          (numeric)  
   • currency        (char(3))  
   • description     (text)  
-  • settled         (bool DEFAULT false) – flip when fund_transaction table has transaction hits  
+  • settled         (bool DEFAULT false) - flip when fund_transaction table has transaction hits  
   • name_norm       (text)  
   • compact_norm    (text)  
   • fund_id         (int FK → fundlist.id)  

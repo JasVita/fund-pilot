@@ -22,12 +22,12 @@ exports.missingBankStatements = async (req, res) => {
     const { rows: existing } = await pool.query(
       `
       SELECT fl.fund_id,
-             fl.name                                 AS fund_name,
+             fl.fund_category            AS fund_name,
              TO_CHAR(fs.statement_date, 'YYYY-MM')   AS snapshot_month
       FROM   public.fund_statement   fs
-      JOIN   public.v_fund_lookup    fl ON fl.name = fs.fund_name
+      JOIN   public.v_fund_lookup    fl ON fl.fund_name = fs.fund_name
       ${where}
-      GROUP  BY fl.fund_id, fl.name, snapshot_month
+      GROUP  BY fl.fund_id, fl.fund_category, snapshot_month
       `,
       params
     );
@@ -67,13 +67,14 @@ exports.missingInvestorStatements = async (req, res) => {
     // 1. fetch existing months
     const { rows: existing } = await pool.query(
       `
-      SELECT fl.fund_id,
-             fl.name                                       AS fund_name, 
-             to_char(hs.snapshot_date,'YYYY-MM')           AS snapshot_month
-      FROM   public.holdings_snapshot hs
-      JOIN   public.v_fund_lookup  fl ON fl.name = hs.fund_name
+      SELECT  fl.fund_id,
+              fl.fund_category                              AS fund_name,   -- ← new label
+              TO_CHAR(hs.snapshot_date,'YYYY-MM')           AS snapshot_month
+      FROM    public.holdings_snapshot AS hs
+      JOIN    public.v_fund_lookup     AS fl
+              ON  fl.fund_name = hs.fund_name               -- join still on the legal name
       ${where}
-      GROUP  BY fl.fund_id, fl.name, snapshot_month       
+      GROUP   BY fl.fund_id, fl.fund_category, snapshot_month     
       `,
       params
     );
