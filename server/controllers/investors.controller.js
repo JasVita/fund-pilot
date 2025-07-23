@@ -132,22 +132,26 @@ exports.investorAllFunds = async (req, res) => {
  * ------------------------------------------------------------------ */
 exports.investorDividends = async (req, res) => {
   const investor = (req.query.investor ?? "").trim();
+  const fundId   = req.query.fund_id ? Number(req.query.fund_id) : null; 
 
   if (!investor)
     return res.status(400).json({ error: "?investor= is required" });
 
   try {
     /* call the PL/pgSQL helper ------------------------------------ */
-    const sql = `SELECT * FROM get_investor_dividends($1::text);`;
-    const { rows } = await pool.query(sql, [investor]);
+    const sql = `
+      SELECT *
+        FROM get_investor_dividends($1::text) d
+       WHERE $2::int IS NULL          -- ← no fund_id passed  → keep all
+          OR d.fund_id = $2::int      -- ← filter when fund_id present
+       ORDER BY d.paid_date DESC;     -- (optional sort)
+    `;
 
-    // if (rows.length === 0)
-    //   return res
-    //     .status(404)
-    //     .json({ error: "No dividend records for that investor" });
+    const { rows } = await pool.query(sql, [investor, fundId]);
+
 
     /* shape the response ------------------------------------------ */
-    res.json({ investor, rows });          // identical to /holdings style
+    res.json({ investor, rows });   
 
   } catch (err) {
     console.error("investorDividends:", err);

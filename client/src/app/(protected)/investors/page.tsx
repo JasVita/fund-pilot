@@ -261,7 +261,7 @@ export default function InvestorsPage() {
   * 3c. dividend history – refetch when investor changes
   * ------------------------------------------------------------------ */
   useEffect(() => {
-    if (!selected) {                     // nothing selected → empty table
+    if (!selected) { 
       setDivRows([]);
       return;
     }
@@ -270,9 +270,7 @@ export default function InvestorsPage() {
       try {
         setLoadingDivs(true);
 
-        const url = `${API_BASE}/investors/holdings/dividends` +
-                    `?investor=${encodeURIComponent(selected.investor ?? "")}`;
-
+        const url = `${API_BASE}/investors/holdings/dividends` + `?investor=${encodeURIComponent(selected.investor ?? "")}`;
         const res = await fetch(url, { credentials: "include" });
 
         /* ── A. graceful handling when the API returns 404 ───────── */
@@ -292,7 +290,7 @@ export default function InvestorsPage() {
         setLoadingDivs(false);
       }
     })();
-  }, [selected]);
+  }, [selected]);   
 
 
   /* ------------------------------------------------------------------ *
@@ -466,9 +464,9 @@ export default function InvestorsPage() {
             {/* report-PDF button */}
             <div className="flex flex-wrap gap-4 pt-4 justify-center ">
               {/* PDF on the left  ─────────────────────────────────────────── */}
-              <ReportGeneratorButton key={selected.investor} defaultInvestor={selected.investor ?? ""} className="flex-1 sm:flex-none mx-auto max-w-[220px]o"/>
+              <ReportGeneratorButton key={selected.investor} defaultInvestor={selected.investor ?? ""} fundId={selectedFund ?? undefined} className="flex-1 sm:flex-none mx-auto max-w-[220px]o"/>
               {/* PPT on the right ─────────────────────────────────────────── */}
-              <PPTGeneratorButton defaultInvestor={selected.investor ?? ""} className="flex-1 sm:flex-none mx-auto max-w-[220px]" />
+              <PPTGeneratorButton defaultInvestor={selected.investor ?? ""} fundId={selectedFund ?? undefined}  className="flex-1 sm:flex-none mx-auto max-w-[220px]" />
             </div>
 
             {/* ── ❷ Latest-holdings-across-all-funds table ─────────────────── */}

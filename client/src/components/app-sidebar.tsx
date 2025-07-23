@@ -155,10 +155,34 @@ const projects = [
 
 /* ---------- component ---------- */
 
-export function AppSidebar(
-  props: React.ComponentProps<typeof Sidebar>,
-) {
-  const { user } = useAuth()
+export function AppSidebar( props: React.ComponentProps<typeof Sidebar>, ) {
+  const { user } = useAuth();
+
+  /* ----------------------------------------------------------
+   * 1️⃣  ensure client‑only rendering
+   * ---------------------------------------------------------- */
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+
+  /* Skeleton shown during SSR and the first client pass.
+   * Must be *identical* on server & client to keep hydration happy. */
+  if (!mounted) {
+    return (
+      <aside
+        /* keep the same CSS variables so layout doesn’t jump */
+        style={
+          {
+            "--sidebar-width": "16rem",
+            "--sidebar-width-icon": "3rem",
+          } as React.CSSProperties
+        }
+        /* minimal classes so the rest of the layout still flows */
+        className="hidden md:block shrink-0"
+      />
+    );
+  }
+
+  // const { user } = useAuth();
 
   /* ---------- header (logo + text) ------------------------------ */
   const HeaderContent = () => {

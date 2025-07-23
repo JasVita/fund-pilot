@@ -4,14 +4,9 @@ import { toast } from "sonner";
 import { generateInvestmentPpt } from "./pptGenerator";    
 import type { TableRowData } from "../tables/InvestmentTable";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
 
-export function usePPTGenerator({
-  defaultInvestor,
-}: {
-  defaultInvestor: string;
-}) {
+export function usePPTGenerator({ defaultInvestor, fundId }: { defaultInvestor: string; fundId?: number; }) {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleGeneratePpt = async () => {
@@ -19,13 +14,9 @@ export function usePPTGenerator({
     setIsGenerating(true);
 
     try {
-      /* ---- fetch fresh holdings like the PDF hook ---------------- */
-      const res = await fetch(
-        `${API_BASE}/investors/report?investor=${encodeURIComponent(
-          defaultInvestor
-        )}`,
-        { credentials: "include" }
-      );
+      /* A. core holdings (all‑fund) */
+      const res = await fetch( `${API_BASE}/investors/report?investor=${encodeURIComponent( defaultInvestor )}`, { credentials: "include" } );
+
       if (!res.ok) throw new Error(await res.text());
 
       const { rows } = await res.json();
@@ -40,11 +31,17 @@ export function usePPTGenerator({
         estimatedProfit: r.pnl_pct ?? "",
       }));
 
+      /* B. dividend rows (optional) */
+      const divQs = `?investor=${encodeURIComponent(defaultInvestor)}` + (fundId ? `&fund_id=${fundId}` : "") 
+      const divRes = await fetch( `${API_BASE}/investors/holdings/dividends${divQs}`, { credentials: "include" } ); 
+      const { rows: dividendRows = [] } = divRes.ok ? await divRes.json() : {};
+
       /* ---- generate & download ---------------------------------- */
       await generateInvestmentPpt({
         investor: defaultInvestor,
         reportDate: new Date().toISOString().split("T")[0],
         tableData: mapped,
+        dividendRows,  
         /* leave totals blank so they don’t show on slide-2 footer */
         totalSubscriptionAmount: "",
         totalMarketValue: "",

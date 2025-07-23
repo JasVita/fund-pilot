@@ -6,11 +6,12 @@ import { usePPTGenerator } from "../report/usePPTGenerator";
 
 interface Props {
     defaultInvestor: string;
+    fundId?: number;
     className?: string;  
 }
 
-export default function PPTGeneratorButton({ defaultInvestor, className }: Props) {
-    const { isGenerating, handleGeneratePpt } = usePPTGenerator({ defaultInvestor });
+export default function PPTGeneratorButton({ defaultInvestor, fundId, className }: Props) {
+    const { isGenerating, handleGeneratePpt } = usePPTGenerator({ defaultInvestor, fundId });
 
     return (
         <Button
