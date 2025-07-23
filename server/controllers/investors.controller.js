@@ -144,7 +144,7 @@ exports.investorDividends = async (req, res) => {
         FROM get_investor_dividends($1::text) d
        WHERE $2::int IS NULL          -- ← no fund_id passed  → keep all
           OR d.fund_id = $2::int      -- ← filter when fund_id present
-       ORDER BY d.paid_date DESC;     -- (optional sort)
+       -- ORDER BY d.paid_date DESC;   
     `;
 
     const { rows } = await pool.query(sql, [investor, fundId]);

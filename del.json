@@ -163,3 +163,116 @@
         }
     ]
 }
+
+
+
+// =======================================================================================
+{
+    "rows": [
+        {
+            "fund_id": 3,
+            "missing_month": "2025-06",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2021-05",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2021-04",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2021-02",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2021-01",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2020-11",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2020-10",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2020-08",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2020-07",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2020-05",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2020-04",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2020-02",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2020-01",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2019-11",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        },
+        {
+            "fund_id": 3,
+            "missing_month": "2019-10",
+            "frequency": "monthly",
+            "missing_quarter": null,
+            "fund_name": "HYWIN GLOBAL MULTI-STRATEGY FUND SPC-HYWIN GLOBAL REAL ESTATE INCOME FUND SP"
+        }
+    ]
+}
