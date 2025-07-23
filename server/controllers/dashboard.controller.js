@@ -28,8 +28,8 @@ exports.unsettledRedemption = async (req, res) => {
 /*  GET  /dashboard/net-cash
   *  curl -H "Cookie: fp_jwt=$JWT" "http://localhost:5103/dashboard/net-cash?acct=233569-20010&fund_id=1"
   *  Params:
-  *    ?acct=233569-20010   (optional – default below)
-  *    ?month=YYYY-MM       (optional – return single month only)
+  *    ?acct=233569-20010   (optional - default below)
+  *    ?month=YYYY-MM       (optional - return single month only)
   *    returns { latest:number|null,  history:[… rows …] }
   */
 exports.netCash = async (req, res) => {
@@ -103,37 +103,27 @@ exports.navVsDiv = async (req, res) => {
 /**
  * GET  /dashboard/aum
  * Params (all optional):
- *   ?after=YYYY-MM-DD   –  paging; return rows *older* than this date
- *   ?limit=N            –  max rows to return  (default 30)
+ *   ?after=YYYY-MM-DD   -  paging; return rows *older* than this date
+ *   ?limit=N            -  max rows to return  (default 30)
  *
  * Returns [{ snapshot:"2025-05-31", nav_total: 17_498_268.41 }, …]
  */
 exports.aumHistory = async (req, res) => {
   const user = req.auth;
 
-  /* ---------- 1) normalise inputs --------------------------- */
-  // const companyId =
-  //   user.company_id && Number.isFinite(+user.company_id)
-  //     ? Number(user.company_id)
-  //     : null;                                    // null ⇒ no filtering
+  /* ---------- 1) normalise inputs --------------------------- */                               // null ⇒ no filtering
   const after  = req.query.after ?? null;        // "YYYY-MM-DD"
   const limit  = Number(req.query.limit ?? 30);  // default 30
   const fundId   = req.query.fund_id ? Number(req.query.fund_id) : null;
 
   /* ---------- 2) build query & params ----------------------- */
-  // let text   = `
-  //   SELECT
-  //     to_char(snapshot_date, 'YYYY-MM-DD') AS snapshot,
-  //     nav_total
-  //   FROM   public.holdings_snapshot
-  // `;
-  /* dynamic SQL to keep paging + fund filter */
+
   let text = `
     SELECT
       to_char(hs.snapshot_date,'YYYY-MM-DD') AS snapshot,
       hs.nav_total
     FROM   public.holdings_snapshot hs
-    LEFT   JOIN v_fund_lookup vl ON vl.name = hs.fund_name
+     LEFT   JOIN v_fund_lookup vl ON vl.fund_name = hs.fund_name
   `;
 
   const vals = [];
@@ -144,20 +134,6 @@ exports.aumHistory = async (req, res) => {
     vals.push(fundId);
   }
 
-  // if (companyId !== null) {
-  //   text += `WHERE company_id = $${idx++} `;
-  //   vals.push(companyId);
-  // }
-
-  // if (after) {
-  //   text += (companyId !== null ? "AND " : "WHERE ")
-  //        +  `snapshot_date < $${idx++} `;
-  //   vals.push(after);
-  // }
-
-  // text += `ORDER BY snapshot_date DESC
-  //          LIMIT  $${idx}`;
-  // vals.push(limit);
   if (after) {
     text += (fundId !== null ? "AND " : "WHERE ")
          +  `hs.snapshot_date < $${idx++} `;
@@ -195,7 +171,7 @@ exports.dealingCalendar = async (req, res) => {
     fundId ?? "ALL"
   );
 
-  // quick sanity‐check – avoids sending “NaN” to the DB
+  // quick sanity‐check - avoids sending “NaN” to the DB
   if (req.query.fund_id && !Number.isFinite(fundId)) {
     return res.status(400).json({ error: "Invalid fund_id" });
   }
