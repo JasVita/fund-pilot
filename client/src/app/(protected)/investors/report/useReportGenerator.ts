@@ -7,11 +7,13 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103"
 
 type Options = {
   defaultInvestor?: string;
+  fundId?: number;  
   // defaultTableData?: TableRowData[];
 };
 
 export const useReportGenerator = ({
   defaultInvestor = "Client Name",
+  fundId,
   // defaultTableData = [],
 }: Options = {}) => {
   /* modal & progress flags --------------------------------------- */
@@ -40,18 +42,15 @@ export const useReportGenerator = ({
 
   /* -------------------------------------------------------------- */
   const handleGenerateReport = async () => {
-    // if (tableData.length === 0) {
-    //   toast.error("No holdings to export.");
-    //   return;
-    // }
-
     setIsGenerating(true);
+
     try {
-      /* fetch fresh rows from the new API ------------------------ */
-      const res = await fetch(
-        `${API_BASE}/investors/report?investor=${encodeURIComponent(investor)}`,
-        { credentials: "include" }
-      );
+      /* ---- A. core holdings (ALWAYS all‑fund) ------------------ */
+      // const qs = `?investor=${encodeURIComponent(investor)}` + (fundId ? `&fund_id=${fundId}` : "");
+      // const res = await fetch(`${API_BASE}/investors/report${qs}`, { credentials: "include" });
+
+      const res = await fetch( `${API_BASE}/investors/report?investor=${encodeURIComponent(investor)}`, { credentials: "include" } );
+
       if (!res.ok) throw new Error(await res.text());
 
       const { rows } = await res.json();
@@ -65,6 +64,12 @@ export const useReportGenerator = ({
           r.total_after_int != null ? String(r.total_after_int) : "",
         estimatedProfit: r.pnl_pct ?? "",
       }));
+
+      /* ---- B. dividend rows (optional, filtered by fund) ------- */
+      const divQs = `?investor=${encodeURIComponent(investor)}` + (fundId ? `&fund_id=${fundId}` : "");
+      const divRes = await fetch(`${API_BASE}/investors/holdings/dividends${divQs}`, { credentials: "include" });
+      const { rows: dividendRows = [] } = divRes.ok ? await divRes.json() : {};
+      // TODO: HANDLE LOGIC LATER
       
       await generateInvestmentReport({
         investor,

@@ -28,10 +28,18 @@ interface TableRowData {
   estimatedProfit:      string;
 }
 
+/* NEW: dividend‑history row */
+export interface DividendRow {
+  fund_category: string;
+  paid_date:     string;
+  amount:        string;
+}
+
 interface ReportData {
   investor:                 string;
   reportDate:               string;          // YYYY-MM-DD
   tableData:                TableRowData[];
+  dividendRows?:            DividendRow[];
   totalSubscriptionAmount:  string;
   totalMarketValue:         string;
   totalAfterDeduction:      string;
@@ -48,12 +56,7 @@ type CellOpts = {
 
 type StyledCell = {
   text: string | number;
-  options?: 
-  CellOpts & {
-    color?: string;
-    bold?: boolean;
-    align?: "left" | "center" | "right";   // <- added so {align:"center"} is legal
-  };
+  options?: CellOpts;
 };
 
 /* ────────────────────────────────────────────────────────────
@@ -193,9 +196,10 @@ export async function generateInvestmentPpt(data: ReportData) {
 
   /* 4. helper that lays the table, then decorates every slide ---- */
   function addPaginatedTable(
-    pptx: PptxGenJS,
+    // pptx: PptxGenJS,
     rows: (string | number | StyledCell)[][],
-    logoData: string
+    logoData: string,
+    colW: number[]
   ) {
     // remember where the slide list starts
     const firstSlideIndex = (pptx as any).slides.length;
@@ -207,7 +211,7 @@ export async function generateInvestmentPpt(data: ReportData) {
       x: 0.45,
       y: 0.75,
       h: 4.8,                              // 0.75 ➜ 5.55 keeps footer clear
-      colW: [2.4, 0.8, 0.8, 1.2, 1.2, 1.2, 1.3],
+      colW, //: [2.4, 0.8, 0.8, 1.2, 1.2, 1.2, 1.3],
 
       fontSize: 10,
       fontFace: "DengXian",
@@ -260,11 +264,49 @@ export async function generateInvestmentPpt(data: ReportData) {
       ]);
     });
 
-    // console.table(allRows.map(r => r.map(c => typeof c === "object" ? c.text : c))); 
-
     // single call – pptxgenjs paginates, we overlay afterwards
-    addPaginatedTable(pptx, allRows, logoTable);
+    // addPaginatedTable(pptx, allRows, logoTable);
+    addPaginatedTable(allRows, logoTable, [2.4, 0.8, 0.8, 1.2, 1.2, 1.2, 1.3]);
   }
+
+  /* 5‑B. dividend‑history table (grouped + merged cells) -------- */
+  if (data.dividendRows && data.dividendRows.length) {
+    /* ① group by 產品名稱(開放式基金) ---------------------------- */
+    type G = { dates: string[]; amounts: string[] };
+    const grouped = new Map<string, G>();
+
+    data.dividendRows.forEach((d) => {
+      const key = d.fund_category;
+      if (!grouped.has(key)) grouped.set(key, { dates: [], amounts: [] });
+      const g = grouped.get(key)!;
+      /* keep each fund’s rows newest‑first for readability */
+      g.dates.push(fmtYYYYMM(d.paid_date));
+      g.amounts.push(fmtMoney(d.amount));
+    });
+
+    /* ② build table rows (one row per fund) -------------------- */
+    const header: StyledCell[] = [
+      { text: "產品名稱(開放式基金)", options: { bold: true, fill: "D0CECE" } },
+      { text: "派息時間",               options: { bold: true, fill: "D0CECE" } },
+      { text: "派息金額",               options: { bold: true, fill: "D0CECE" } },
+    ];
+
+    const rows: (string | number | StyledCell)[][] = [header];
+
+    /* preserve insertion order from the original list            *
+    * (Map keeps first‑seen order)                               */
+    grouped.forEach((g, fund) => {
+      rows.push([
+        fund,                       /* single wide merged cell        */
+        g.dates.join("\n"),         /* multi‑line date list            */
+        g.amounts.join("\n"),       /* multi‑line amount list          */
+      ]);
+    });
+
+    /* ③ paginate exactly the same way as the holdings table ---- */
+    addPaginatedTable(rows, logoTable, [5.1, 1.9, 1.9]);
+  }
+
 
 
   /* 6. disclaimer -------------------------------------------- */

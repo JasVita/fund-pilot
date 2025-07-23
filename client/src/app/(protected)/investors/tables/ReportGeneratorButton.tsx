@@ -6,11 +6,12 @@ import { useReportGenerator } from "../report/useReportGenerator";
 
 interface Props {
   defaultInvestor: string;
+  fundId?: number;
   className?: string; 
 }
 
-const ReportGeneratorButton = ({ defaultInvestor, className }: Props) => {
-  const { isGenerating, handleGenerateReport } = useReportGenerator({ defaultInvestor });
+const ReportGeneratorButton = ({ defaultInvestor, fundId, className }: Props) => {
+  const { isGenerating, handleGenerateReport } = useReportGenerator({ defaultInvestor, fundId });
 
   return (
     <Button
