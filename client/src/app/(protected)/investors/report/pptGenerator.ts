@@ -307,8 +307,6 @@ export async function generateInvestmentPpt(data: ReportData) {
     addPaginatedTable(rows, logoTable, [5.1, 1.9, 1.9]);
   }
 
-
-
   /* 6. disclaimer -------------------------------------------- */
   {
     const slide = pptx.addSlide();

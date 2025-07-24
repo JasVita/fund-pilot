@@ -3,7 +3,9 @@ import { useState, useEffect } from "react";
 import { generateInvestmentReport } from "./pdfGenerator";
 import { toast } from "sonner";
 import type { TableRowData } from "../tables/InvestmentTable";
+import type { DividendRow } from "./pptGenerator"; 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5003";
+
 
 type Options = {
   defaultInvestor?: string;
@@ -69,12 +71,12 @@ export const useReportGenerator = ({
       const divQs = `?investor=${encodeURIComponent(investor)}` + (fundId ? `&fund_id=${fundId}` : "");
       const divRes = await fetch(`${API_BASE}/investors/holdings/dividends${divQs}`, { credentials: "include" });
       const { rows: dividendRows = [] } = divRes.ok ? await divRes.json() : {};
-      // TODO: HANDLE LOGIC LATER
       
       await generateInvestmentReport({
         investor,
         reportDate,
         tableData: mapped,
+        dividendRows,  
         ...totals,
       });
 
