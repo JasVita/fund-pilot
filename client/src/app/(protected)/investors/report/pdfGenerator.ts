@@ -367,77 +367,86 @@ export async function generateInvestmentReport(data: ReportData) {
     
   /* ============ Page 4 – Dividend‑history table (3 columns) =============== */
   if (data.dividendRows && data.dividendRows.length) {
-    /* group → { dates[], amts[] } -------------------------------- */
-    const grouped = new Map<string, { dates: string[]; amts: string[] }>();
+    /* ① group rows by 產品名稱(開放式基金) */
+    const grouped = new Map();
     data.dividendRows.forEach(r => {
-      if (!grouped.has(r.fund_category))
-        grouped.set(r.fund_category, { dates: [], amts: [] });
-      const g = grouped.get(r.fund_category)!;
-      g.dates.unshift(fmtYYYYMM(r.paid_date));
+      if (!grouped.has(r.fund_category)) grouped.set(r.fund_category, { dates: [], amts: [] });
+      const g = grouped.get(r.fund_category);
+      g.dates.unshift(fmtYYYYMM(r.paid_date));     // newest‑first for readability
       g.amts .unshift(fmtMoney(r.amount));
     });
 
-    /* ── geometry ──────────────────────────────────────────────── */
-    const divColW = [120, 90, 90] as const;
-    const divColX = [
-      tableX,
-      tableX + divColW[0] + TABLE_GAP,
-      tableX + divColW[0] + divColW[1] + 2 * TABLE_GAP,
-    ] as const;
+    /* ② geometry helpers */
+    const divColW = [120, 90, 90];                     // widths
+    const divColX = [tableX, tableX + divColW[0] + TABLE_GAP, tableX + divColW[0] + divColW[1] + 2*TABLE_GAP];
 
     const drawDivHeader = () => {
-      doc.setFillColor(208, 206, 206);
-      divColW.forEach((w, i) => doc.rect(divColX[i], y, w, headerH, "F"));
+      doc.setFillColor(208,206,206);
+      divColW.forEach((w,i) => doc.rect(divColX[i], y, w, headerH, "F"));
       doc.setFontSize(14).setTextColor(0);
-      ["產品名稱(開放式基金)", "派息時間", "派息金額"].forEach((t, i) =>
-        doc.text(t, divColX[i] + divColW[i] / 2, y + headerH / 2,
-                { align: "center", baseline: "middle" }));
+      ["產品名稱(開放式基金)", "派息時間", "派息金額"].forEach((t,i)=>
+        doc.text(t, divColX[i] + divColW[i]/2, y + headerH/2, { align:"center", baseline:"middle" })
+      );
       y += headerH + TABLE_GAP;
     };
 
-    /* capacity = how many *text* lines fit on a page -------------- */
-    const CAP_LINES = Math.floor( (pageH - TOP_MARGIN - BOTTOM_MARGIN - 4) / lineGap ) - 2;  // 4 = padding, −2 for safety
+    const CAP_LINES = Math.floor((pageH - TOP_MARGIN - BOTTOM_MARGIN - 4) / lineGap) - 2; // max text‑lines / page
 
-    /* start clean; page added lazily */
-    y = 0;
+    y = 0;                         // force lazy creation of first page
     let zebra = 0;
 
     grouped.forEach(({ dates, amts }, fund) => {
       let offset = 0;
-      while (offset < dates.length) {
-        const take = Math.min(CAP_LINES, dates.length - offset);
+      let firstRowOnPage = true;   // reset on *every* physical page
 
-        const chunkFund  = offset === 0 ? fund : "";   // name only on 1st chunk
+      while (offset < dates.length) {
+        /* how many date/amount lines fit in this row */
+        const take = Math.min(CAP_LINES, dates.length - offset);
         const chunkDates = dates.slice(offset, offset + take);
         const chunkAmts  = amts .slice(offset, offset + take);
 
-        const wrapped = [
-          doc.splitTextToSize(chunkFund,             divColW[0] - 4),
-          doc.splitTextToSize(chunkDates.join("\n"), divColW[1] - 4),
-          doc.splitTextToSize(chunkAmts.join("\n"),  divColW[2] - 4),
-        ] as const;
+        // estimate row height (needs wrapped text height)
+        const hDates = doc.splitTextToSize(chunkDates.join("\n"), divColW[1]-4).length;
+        const hAmts  = doc.splitTextToSize(chunkAmts .join("\n"), divColW[2]-4).length;
+        const rowH   = Math.max(hDates, hAmts, 1) * lineGap + 4;
 
-        const rowH = Math.max(...wrapped.map(w => w.length)) * lineGap + 4;
-
-        /* need a fresh page? */
+        /* page break BEFORE we decide whether to print fund name */
         if (y === 0 || y + rowH > pageH - BOTTOM_MARGIN) {
-          y = startNewDivTablePage();   // “派息紀錄” title & footer
-          drawDivHeader();              // table header
+          y = startNewDivTablePage();
+          drawDivHeader();
+          firstRowOnPage = true;   // we are top‑of‑page now
         }
 
-        /* paint row */
-        const bg = zebra % 2 ? ([217, 217, 217] as const) : ([232, 232, 232] as const);
-        divColW.forEach((w, i) => {
-          doc.setFillColor(bg[0], bg[1], bg[2]).rect(divColX[i], y, w, rowH, "F");
-          wrapped[i].forEach((ln: string, li: number) => doc.text(ln, divColX[i] + w / 2, y + 8 + li * lineGap, { align: "center" }));
+        /* show fund name if: (a) first logical chunk *or* (b) first row on THIS physical page */
+        const chunkFund = (offset === 0 || firstRowOnPage) ? fund : "";
+
+        const wrapped = [
+          doc.splitTextToSize(chunkFund,            divColW[0]-4),
+          doc.splitTextToSize(chunkDates.join("\n"), divColW[1]-4),
+          doc.splitTextToSize(chunkAmts .join("\n"), divColW[2]-4),
+        ];
+
+        const realRowH = Math.max(...wrapped.map(w => w.length)) * lineGap + 4; // (may equal rowH)
+
+        /* zebra fill + draw text */
+        const bg = zebra % 2 ? [217,217,217] : [232,232,232];
+        divColW.forEach((w,i) => {
+          doc.setFillColor(bg[0], bg[1], bg[2]).rect(divColX[i], y, w, realRowH, "F");
+          wrapped[i].forEach((ln: string, li: number) =>
+            doc.text(ln, divColX[i] + w/2, y + 8 + li*lineGap, { align:"center" })
+          );
         });
 
-        y      += rowH + TABLE_GAP;
-        zebra  += 1;
+        /* advance */
+        y += realRowH + TABLE_GAP;
+        zebra += 1;
         offset += take;
+        firstRowOnPage = false;    // subsequent rows on same page
       }
     });
   }
+
+
 
   /* ============ Page 4 – Disclaimer ============================== */
   doc.addPage();
