@@ -365,19 +365,19 @@ export async function generateInvestmentReport(data: ReportData) {
       }
     }
     
-  /* ============ Dividend‑history table (3 columns) =============== */
+  /* ============ Page 4 – Dividend‑history table (3 columns) =============== */
   if (data.dividendRows && data.dividendRows.length) {
-    /* regroup so each fund = one row ------------------------------ */
+    /* group → { dates[], amts[] } -------------------------------- */
     const grouped = new Map<string, { dates: string[]; amts: string[] }>();
-    data.dividendRows.forEach(d => {
-      if (!grouped.has(d.fund_category))
-        grouped.set(d.fund_category, { dates: [], amts: [] });
-      const g = grouped.get(d.fund_category)!;
-      g.dates.unshift(fmtYYYYMM(d.paid_date));      // newest first
-      g.amts .unshift(fmtMoney(d.amount));
+    data.dividendRows.forEach(r => {
+      if (!grouped.has(r.fund_category))
+        grouped.set(r.fund_category, { dates: [], amts: [] });
+      const g = grouped.get(r.fund_category)!;
+      g.dates.unshift(fmtYYYYMM(r.paid_date));
+      g.amts .unshift(fmtMoney(r.amount));
     });
 
-    /* geometry (3 columns) --------------------------------------- */
+    /* ── geometry ──────────────────────────────────────────────── */
     const divColW = [120, 90, 90] as const;
     const divColX = [
       tableX,
@@ -385,58 +385,57 @@ export async function generateInvestmentReport(data: ReportData) {
       tableX + divColW[0] + divColW[1] + 2 * TABLE_GAP,
     ] as const;
 
-    /* reusable header drawer */
     const drawDivHeader = () => {
       doc.setFillColor(208, 206, 206);
       divColW.forEach((w, i) => doc.rect(divColX[i], y, w, headerH, "F"));
       doc.setFontSize(14).setTextColor(0);
       ["產品名稱(開放式基金)", "派息時間", "派息金額"].forEach((t, i) =>
-        doc.text(t, divColX[i] + divColW[i] / 2, y + headerH / 2, {
-          align: "center",
-          baseline: "middle",
-        }),
-      );
+        doc.text(t, divColX[i] + divColW[i] / 2, y + headerH / 2,
+                { align: "center", baseline: "middle" }));
       y += headerH + TABLE_GAP;
     };
 
-    /* start with no page yet – we’ll create it lazily on first row */
+    /* capacity = how many *text* lines fit on a page -------------- */
+    const CAP_LINES = Math.floor( (pageH - TOP_MARGIN - BOTTOM_MARGIN - 4) / lineGap ) - 2;  // 4 = padding, −2 for safety
+
+    /* start clean; page added lazily */
     y = 0;
     let zebra = 0;
 
-    grouped.forEach((g, fund) => {
-      const wrapped = [
-        doc.splitTextToSize(fund,               divColW[0] - 4),
-        doc.splitTextToSize(g.dates.join("\n"), divColW[1] - 4),
-        doc.splitTextToSize(g.amts.join("\n"),  divColW[2] - 4),
-      ] as const;
+    grouped.forEach(({ dates, amts }, fund) => {
+      let offset = 0;
+      while (offset < dates.length) {
+        const take = Math.min(CAP_LINES, dates.length - offset);
 
-      const rowH = Math.max(...wrapped.map(w => w.length)) * lineGap + 4;
+        const chunkFund  = offset === 0 ? fund : "";   // name only on 1st chunk
+        const chunkDates = dates.slice(offset, offset + take);
+        const chunkAmts  = amts .slice(offset, offset + take);
 
-      /* open a new page (and header) if none yet or row won’t fit */
-      if (
-        y === 0 ||                               // first‑ever row
-        y + rowH > pageH - BOTTOM_MARGIN         // overflow
-      ) {
-        y = startNewDivTablePage();              // new blank page
-        drawDivHeader();                         // header on that page
+        const wrapped = [
+          doc.splitTextToSize(chunkFund,             divColW[0] - 4),
+          doc.splitTextToSize(chunkDates.join("\n"), divColW[1] - 4),
+          doc.splitTextToSize(chunkAmts.join("\n"),  divColW[2] - 4),
+        ] as const;
+
+        const rowH = Math.max(...wrapped.map(w => w.length)) * lineGap + 4;
+
+        /* need a fresh page? */
+        if (y === 0 || y + rowH > pageH - BOTTOM_MARGIN) {
+          y = startNewDivTablePage();   // “派息紀錄” title & footer
+          drawDivHeader();              // table header
+        }
+
+        /* paint row */
+        const bg = zebra % 2 ? ([217, 217, 217] as const) : ([232, 232, 232] as const);
+        divColW.forEach((w, i) => {
+          doc.setFillColor(bg[0], bg[1], bg[2]).rect(divColX[i], y, w, rowH, "F");
+          wrapped[i].forEach((ln: string, li: number) => doc.text(ln, divColX[i] + w / 2, y + 8 + li * lineGap, { align: "center" }));
+        });
+
+        y      += rowH + TABLE_GAP;
+        zebra  += 1;
+        offset += take;
       }
-
-      /* zebra background + text ---------------------------------- */
-      const bg = zebra % 2 ? ([217, 217, 217] as const) : ([232, 232, 232] as const);
-      divColW.forEach((w, i) => {
-        doc.setFillColor(bg[0], bg[1], bg[2]).rect(divColX[i], y, w, rowH, "F");
-        wrapped[i].forEach((ln: string, li: number) =>
-          doc.text(
-            ln,
-            divColX[i] + w / 2,
-            y + 8 + li * lineGap,
-            { align: "center" },
-          ),
-        );
-      });
-
-      y += rowH + TABLE_GAP;
-      zebra++;
     });
   }
 
