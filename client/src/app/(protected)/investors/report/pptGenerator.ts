@@ -293,15 +293,20 @@ export async function generateInvestmentPpt(data: ReportData) {
 
     const rows: (string | number | StyledCell)[][] = [header];
 
-    /* preserve insertion order from the original list            *
-    * (Map keeps first‑seen order)                               */
-    grouped.forEach((g, fund) => {
-      rows.push([
-        fund,                       /* single wide merged cell        */
-        g.dates.join("\n"),         /* multi‑line date list            */
-        g.amounts.join("\n"),       /* multi‑line amount list          */
-      ]);
-    });
+    const MAX_LINES_PER_ROW = 19;   // tweak if you change the styling
+
+      grouped.forEach((g, fund) => {
+        for (let i = 0; i < g.dates.length; i += MAX_LINES_PER_ROW) {
+          const chunkDates = g.dates.slice(i, i + MAX_LINES_PER_ROW);
+          const chunkAmts  = g.amounts.slice(i, i + MAX_LINES_PER_ROW);
+
+          rows.push([
+            fund,                          // repeat on every chunk
+            chunkDates.join("\n"),         // multi‑line date list
+            chunkAmts.join("\n"),          // multi‑line amount list
+          ]);
+        }
+      });
 
     /* ③ paginate exactly the same way as the holdings table ---- */
     addPaginatedTable(rows, logoTable, [5.1, 1.9, 1.9]);
