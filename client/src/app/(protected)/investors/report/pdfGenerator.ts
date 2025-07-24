@@ -13,6 +13,13 @@ interface ReportData {
     totalAfterDeduction: string;
     estimatedProfit: string;
   }[];
+
+  dividendRows?: {
+    fund_category: string;
+    paid_date: string;
+    amount: string;
+  }[];
+
   totalSubscriptionAmount: string;
   totalMarketValue: string;
   totalAfterDeduction: string;
@@ -119,6 +126,7 @@ function fmtProfitLines(val: string): string {
     })
     .join("\n");
 }
+
 /* ---------- main builder ----------------------------------------- */
 export async function generateInvestmentReport(data: ReportData) {
   const canonicalName = await fetchFormattedName(data.investor);    
@@ -195,6 +203,17 @@ export async function generateInvestmentReport(data: ReportData) {
     drawFooter();                     // 👈  add the footer right away
     return drawTableHeader(TOP_MARGIN);
   }
+
+  /* ------ helper: start a new “Dividend history” page ------------ */
+  function startNewDivTablePage(): number {
+    doc.addPage();
+    doc.setTextColor(0);
+    doc.addImage(logoTableBlk, "PNG", 280, 12, 70, 29.6);
+    doc.setFont("ZhengTiFan").setFontSize(28).text("已投資產品總結", 30, 40);
+    drawFooter();                              // same footer as other pages
+    return TOP_MARGIN;                         // NOTE: no 7‑column header
+  }
+
 
   /* ============ Page 1 – Cover ================================== */
   doc.addImage(bg, "PNG", 0, 0, pageW, pageH);
@@ -323,7 +342,7 @@ export async function generateInvestmentReport(data: ReportData) {
         wrapped.forEach((lines, colIdx) => {
           const cx = colX[colIdx] + colW[colIdx] / 2;
 
-          lines.forEach((ln, li) => {
+          lines.forEach((ln: string, li: number) => {
             const v = ln.trim();
 
             /* colour only the P&L column */
@@ -345,9 +364,83 @@ export async function generateInvestmentReport(data: ReportData) {
         zebra++;
       }
     }
+    
+  /* ============ Dividend‑history table (3 columns) =============== */
+  if (data.dividendRows && data.dividendRows.length) {
+    /* regroup so each fund = one row ------------------------------ */
+    const grouped = new Map<string, { dates: string[]; amts: string[] }>();
+    data.dividendRows.forEach(d => {
+      if (!grouped.has(d.fund_category))
+        grouped.set(d.fund_category, { dates: [], amts: [] });
+      const g = grouped.get(d.fund_category)!;
+      g.dates.unshift(fmtYYYYMM(d.paid_date));      // newest first
+      g.amts .unshift(fmtMoney(d.amount));
+    });
 
+    /* geometry (3 columns) --------------------------------------- */
+    const divColW = [120, 90, 90] as const;
+    const divColX = [
+      tableX,
+      tableX + divColW[0] + TABLE_GAP,
+      tableX + divColW[0] + divColW[1] + 2 * TABLE_GAP,
+    ] as const;
 
-  /* ============ Page 3 – Disclaimer ============================== */
+    /* reusable header drawer */
+    const drawDivHeader = () => {
+      doc.setFillColor(208, 206, 206);
+      divColW.forEach((w, i) => doc.rect(divColX[i], y, w, headerH, "F"));
+      doc.setFontSize(14).setTextColor(0);
+      ["產品名稱(開放式基金)", "派息時間", "派息金額"].forEach((t, i) =>
+        doc.text(t, divColX[i] + divColW[i] / 2, y + headerH / 2, {
+          align: "center",
+          baseline: "middle",
+        }),
+      );
+      y += headerH + TABLE_GAP;
+    };
+
+    /* start with no page yet – we’ll create it lazily on first row */
+    y = 0;
+    let zebra = 0;
+
+    grouped.forEach((g, fund) => {
+      const wrapped = [
+        doc.splitTextToSize(fund,               divColW[0] - 4),
+        doc.splitTextToSize(g.dates.join("\n"), divColW[1] - 4),
+        doc.splitTextToSize(g.amts.join("\n"),  divColW[2] - 4),
+      ] as const;
+
+      const rowH = Math.max(...wrapped.map(w => w.length)) * lineGap + 4;
+
+      /* open a new page (and header) if none yet or row won’t fit */
+      if (
+        y === 0 ||                               // first‑ever row
+        y + rowH > pageH - BOTTOM_MARGIN         // overflow
+      ) {
+        y = startNewDivTablePage();              // new blank page
+        drawDivHeader();                         // header on that page
+      }
+
+      /* zebra background + text ---------------------------------- */
+      const bg = zebra % 2 ? ([217, 217, 217] as const) : ([232, 232, 232] as const);
+      divColW.forEach((w, i) => {
+        doc.setFillColor(bg[0], bg[1], bg[2]).rect(divColX[i], y, w, rowH, "F");
+        wrapped[i].forEach((ln: string, li: number) =>
+          doc.text(
+            ln,
+            divColX[i] + w / 2,
+            y + 8 + li * lineGap,
+            { align: "center" },
+          ),
+        );
+      });
+
+      y += rowH + TABLE_GAP;
+      zebra++;
+    });
+  }
+
+  /* ============ Page 4 – Disclaimer ============================== */
   doc.addPage();
   doc.addImage(bg, "PNG", 0, 0, pageW, pageH);
   doc.addImage(logoDisc, "PNG", 238, 14.7, 83.5, 29.6);

@@ -32,9 +32,9 @@ exports.portfolioOverview = async (req, res) => {
 
     /* ② respond ---------------------------------------------------- */
     res.json({
-      page      : 1,         // ← no pagination any more
+      page      : 1,   
       pageCount : 1,
-      rows,                  // ← entire data set
+      rows,
     });
 
   } catch (err) {
@@ -129,6 +129,7 @@ exports.investorAllFunds = async (req, res) => {
 /* ------------------------------------------------------------------ *
  * GET /investors/dividends?investor=NAME
  * curl -H "Cookie: fp_jwt=$JWT" "http://localhost:5103/investors/holdings/dividends?investor=Feng%20Fan"
+ * curl -H "Cookie: fp_jwt=$JWT" "http://localhost:5103/investors/holdings/dividends?investor=Feng%20Fan&fund_id=5"
  * ------------------------------------------------------------------ */
 exports.investorDividends = async (req, res) => {
   const investor = (req.query.investor ?? "").trim();
@@ -138,17 +139,14 @@ exports.investorDividends = async (req, res) => {
     return res.status(400).json({ error: "?investor= is required" });
 
   try {
-    /* call the PL/pgSQL helper ------------------------------------ */
     const sql = `
       SELECT *
         FROM get_investor_dividends($1::text) d
-       WHERE $2::int IS NULL          -- ← no fund_id passed  → keep all
-          OR d.fund_id = $2::int      -- ← filter when fund_id present
-       -- ORDER BY d.paid_date DESC;   
-    `;
+       WHERE $2::int IS NULL
+          OR d.fund_id = $2::int
+       -- ORDER BY d.paid_date DESC;`;
 
     const { rows } = await pool.query(sql, [investor, fundId]);
-
 
     /* shape the response ------------------------------------------ */
     res.json({ investor, rows });   
