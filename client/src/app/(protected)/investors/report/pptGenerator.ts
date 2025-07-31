@@ -4,6 +4,7 @@
 // ------------------------------------------------------------
 
 import PptxGenJS from "pptxgenjs";
+import { fmtYYYYMM, fmtMoney, to2dp } from "@/lib/report-format";
 
 declare module "pptxgenjs" {
   interface TableOptions {
@@ -57,44 +58,6 @@ type CellOpts = {
 type StyledCell = {
   text: string | number;
   options?: CellOpts;
-};
-
-/* ────────────────────────────────────────────────────────────
- *  SMALL UTILS – **★ all starred blocks are new / changed**
- * ──────────────────────────────────────────────────────────── */
-function splitLines(s: string) {
-  return s.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-}
-
-/* ★ give “2023-04\n2023-09” → “2023-04\n2023-09” (each part YYYY-MM) */
-const fmtYYYYMM = (raw: string) =>
-  splitLines(raw)
-    .map(part => {
-      const d = new Date(part);
-      return isNaN(d.getTime())
-        ? part
-        : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    })
-    .join("\n");
-
-/* ★ keeps multiple numbers, formats each one -> “280,000.00\n500,000.00” */
-const fmtMoney = (raw: string) =>
-  splitLines(raw)
-    .map(part => {
-      const n = Number(part.replace(/,/g, ""));
-      return !Number.isFinite(n) || n === 0
-        ? ""
-        : n.toLocaleString("en-US", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          });
-    })
-    .join("\n");
-
-/* unchanged helpers -------------------------------------------------- */
-const to2dp = (s: string) => {
-  const n = Number(s.replace(/,/g, ""));
-  return isNaN(n) ? s : n.toFixed(2);
 };
 
 function profitCell(raw: string | undefined): StyledCell {

@@ -1,4 +1,13 @@
 import { jsPDF } from "jspdf";
+import {
+  toStr,
+  fmtYYYYMM,
+  fmtMoney,
+  fmtMoneyLines,
+  to2dp,
+  initials,
+} from "@/lib/report-format";
+
 
 /* ---------- types ------------------------------------------------ */
 interface ReportData {
@@ -51,42 +60,12 @@ async function fetchFormattedName(raw: string): Promise<string> {
   return (await r.text()).trim();
 }
 
+
 /* ---------- helpers for static images ---------------------------- */
 const getCoverImg = () => fetchAsDataURL("/cover-bg.png", "cover");
 const getLogoCoverImg = () => fetchAsDataURL("/logo-white-cover.png", "logoCover");
 const getLogoTableBlack = () => fetchAsDataURL("/logo-black-table.png", "logoTableBlk");
 const getLogoDisclaimer = () => fetchAsDataURL("/logo-white-disclaimer.png", "logoDisc");
-
-/* ---------- helpers for numbers / dates -------------------------- */
-const fmtYYYYMM = (s: string) => {
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? s : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-};
-const to2dp = (s: string) => {
-  const n = Number(s.replace(/,/g, ""));
-  return isNaN(n) ? s : n.toFixed(2);
-};
-
-/* ————— initials from full name ————— */
-const initials = (full: string) => full.trim().split(/\s+/).map(w => w[0].toUpperCase()).join("");
-
-/* ——— 1-comma-per-thousand, 2 dp ——— */
-const fmtMoney = (v: string) => {
-  const txt = v.trim();
-  if (!txt) return "";                         // already blank ➜ keep blank
-
-  const n = Number(txt.replace(/,/g, ""));
-  if (!Number.isFinite(n) || n === 0) return "";   // ← NEW: hide 0 / 0.00
-
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-};
-
-
-/* a helper for multiline cells (split on \n) */
-const fmtMoneyLines = (v: string) => v.split("\n").map(fmtMoney).join("\n");
 
 /* ---------- ZhengTiFan font loader ------------------------------ */
 async function ensureZhengTiFan(doc: jsPDF) {
@@ -253,7 +232,7 @@ export async function generateInvestmentReport(data: ReportData) {
    *   • breaks it into sub-rows that all fit on a page
    * ---------------------------------------------------------------- */
   function splitIntoChunks(r: ReportData["tableData"][number]) {
-    const split = (s: string) => s.split("\n");
+    const split = (s: string | null | undefined): string[] => toStr(s).split("\n");
 
     const cols = [
       split(r.productName),
@@ -445,8 +424,6 @@ export async function generateInvestmentReport(data: ReportData) {
       }
     });
   }
-
-
 
   /* ============ Page 4 – Disclaimer ============================== */
   doc.addPage();
