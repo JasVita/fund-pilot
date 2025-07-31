@@ -13,7 +13,7 @@ const CN_SURNAMES = new Set([
   "Zheng","Xie","Ye","Deng","Fang","Wei","Cao","Peng","Jiang","Qian",
   "Pan","Xiang","Xiong","Shi","Tan","Han","Yuan","Yao","Tong","Meng",
   "Pei","Hong","Kong","Lai","Cui","Duan","Bai","Mo","Rao","Shen",
-  "Song","Tian","Su","Fan","Cheng","Che","Ming"
+  "Song","Tian","Su","Fan","Cheng","Che","Ming","Ding"
 ]);
 
 /* company key-words → treat as non-personal */
@@ -81,7 +81,7 @@ If the text contains “Ltd”, “Limited”, “Inc”, “Company”, “Hold
 <SURNAME-LIST> =
 Li Wang Zhang Liu Chen Yang Zhao Huang Zhou Wu Xu Sun Ma Zhu Hu Guo He Gao Lin Luo
 Zheng Xie Ye Deng Fang Wei Cao Peng Jiang Qian Pan Xiang Xiong Shi Tan Han Yuan Yao Tong
-Meng Pei Hong Kong Lai Cui Duan Bai Mo Rao Shen Song Tian Su Fan Cheng
+Meng Pei Hong Kong Lai Cui Duan Bai Mo Rao Shen Song Tian Su Fan Cheng Ding
 `.trim();
 
     const { choices } = await openai.chat.completions.create({

@@ -21,15 +21,15 @@ export function usePPTGenerator({ defaultInvestor, fundId }: { defaultInvestor: 
 
       const { rows } = await res.json();
       const mapped: TableRowData[] = rows.map((r: any) => ({
-        productName: r.name,
-        subscriptionTime: r.sub_date,
-        dataDeadline: r.data_cutoff,
-        subscriptionAmount: r.subscribed,
-        marketValue: r.market_value,
-        totalAfterDeduction:
-          r.total_after_int != null ? String(r.total_after_int) : "",
-        estimatedProfit: r.pnl_pct ?? "",
+        productName:        r.name ?? "",
+        subscriptionTime:    r.sub_date ?? "",
+        dataDeadline:        r.data_cutoff ?? "",
+        subscriptionAmount:  r.subscribed ?? "",
+        marketValue:         r.market_value ?? "",
+        totalAfterDeduction: r.total_after_int != null ? String(r.total_after_int) : "",
+        estimatedProfit:     r.pnl_pct ?? "",
       }));
+
 
       /* B. dividend rows (optional) */
       const divQs = `?investor=${encodeURIComponent(defaultInvestor)}` + (fundId ? `&fund_id=${fundId}` : "") 
