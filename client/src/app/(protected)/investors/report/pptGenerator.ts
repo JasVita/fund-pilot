@@ -5,7 +5,6 @@
 
 import PptxGenJS from "pptxgenjs";
 import { fmtYYYYMM, fmtMoney, to2dp } from "@/lib/report-format";
-
 declare module "pptxgenjs" {
   interface TableOptions {
     autoPageSlideCallback?: (slide: PptxGenJS.Slide, idx: number) => void;

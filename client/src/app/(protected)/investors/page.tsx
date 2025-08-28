@@ -14,19 +14,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 import ReportGeneratorButton from "./tables/ReportGeneratorButton";
 import PPTGeneratorButton  from "./tables/PPTGeneratorButton";
+
+/* NEW imports for shared formatters */
+import { fmtNum } from "@/lib/format";
+import { fmtDateListStr, fmtNumListStr } from "@/lib/report-format";
+
 /* ---- helpers ----------------------------------------------------- */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
-
-const usd = (v: number, compact = false) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: compact ? "compact" : "standard",
-    maximumFractionDigits: compact ? 1 : 2,
-  }).format(v);
-
-const fmtNum = (v: number) =>
-  new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(v);
 
 const splitLines = (s?: string | null) => (s ?? "").split("\n");
 
@@ -47,13 +41,6 @@ const fmtNumList = (s: string | null | undefined) =>
     );
   });
 
-const fmtNumListStr = (s: string | null | undefined) =>
-  splitLines(s).map((token) => {
-    const n = parseLooseNumber(token);
-    return n !== null ? fmtNum(n) : token.replace(/\.$/, "");
-  }).join("\n");
-
-
 const fmtDateList = (s: string | null | undefined) =>
   splitLines(s).map((d, i, arr) => {
     const dt = new Date(d);
@@ -65,12 +52,7 @@ const fmtDateList = (s: string | null | undefined) =>
     );
   });
 
-const fmtDateListStr = (s: string | null | undefined) =>
-  splitLines(s).map((d) => {
-    const dt = new Date(d);
-    return !isNaN(dt.getTime()) ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}` : d;
-  })
-    .join("\n");
+
 
 /* simple USD fmt so it matches your style */
 const usdStd = (v: number) =>
@@ -80,23 +62,7 @@ const usdStd = (v: number) =>
     maximumFractionDigits: 2,
   }).format(v);
 
-/* ------------------------------------------------------------------ *
- * smartPageList()
- *   – always shows first & last page
- *   – when current page ≤ 3 ➜  1 2 3 … last
- *   – when current page ≥ (last-2) ➜ 1 … last-2 last-1 last
- *   – otherwise               ➜  1 … p-1 p p+1 … last
- * ------------------------------------------------------------------ */
-function smartPageList(page: number, last: number): (number | "gap")[] {
-  if (last <= 3) return [...Array(last)].map((_, i) => i + 1);
-  if (page <= 2) return [1, 2, "gap", last];
-  if (page >= last - 1) return [1, "gap", last - 1, last];
-  /* middle */
-  return [1, "gap", page - 1, page, page + 1, "gap", last];
-}
-
 /* ---- types ------------------------------------------------------- */
-// type Investor = InvestorRow;
 
 type Holding = {
   name: string;

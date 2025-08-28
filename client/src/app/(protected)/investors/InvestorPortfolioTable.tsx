@@ -15,6 +15,7 @@ import type {
   GridApi,
 } from 'ag-grid-community';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import { fmtThousands } from '@/lib/format';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -73,25 +74,33 @@ export default function InvestorPortfolioTable({
           p.value === '—' ? 'ag-text-muted' : 'font-medium',
       },
       { headerName: 'Class', field: 'class', flex: 1, valueGetter: p => p.data?.class ?? '—' },
-      { headerName: 'Number Held', field: 'number_held', flex: 1, valueGetter: p => p.data?.number_held ?? '—' },
+      /* ⬇️ Number Held — comma-separated, keep up to 6 dp */
+      {
+        headerName: 'Number Held',
+        field: 'number_held',
+        flex: 1,
+        valueFormatter: (p: ValueFormatterParams<Investor>) =>
+          fmtThousands(p.value, 6),
+        cellClass: 'font-mono',
+      },
+
+      /* ⬇️ Current NAV — comma-separated, 2 dp (no $ symbol) */
       {
         headerName: 'Current NAV',
         field: 'current_nav',
         flex: 1.2,
         valueFormatter: (p: ValueFormatterParams<Investor>) =>
-          p.value != null
-            ? p.value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
-            : '—',
+          fmtThousands(p.value, 2),
         cellClass: 'font-mono',
       },
+
+      /* ⬇️ Unpaid Redeem — comma-separated, 2 dp (red if present) */
       {
         headerName: 'Unpaid Redeem',
         field: 'unpaid_redeem',
         flex: 1.2,
         valueFormatter: (p: ValueFormatterParams<Investor>) =>
-          p.value != null
-            ? p.value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
-            : '—',
+          p.value != null ? fmtThousands(p.value, 2) : '—',
         cellClass: (p: CellClassParams<Investor>) =>
           p.value != null ? 'text-destructive font-mono' : 'ag-text-muted',
       },

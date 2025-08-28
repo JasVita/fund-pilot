@@ -13,6 +13,9 @@ import {
   ValueFormatterParams,
 } from 'ag-grid-community';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+/* NEW imports for shared formatters */
+import { fmtYYYYMM } from '@/lib/report-format';
+import { fmtMoneyEnUS } from '@/lib/format';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -28,13 +31,6 @@ export type Holding = {
 };
 
 /* ---------- helpers -------------------------------------------- */
-const fmtYYYYMM = (d: string) =>
-  isNaN(new Date(d).getTime())
-    ? d
-    : `${new Date(d).getFullYear()}-${String(
-        new Date(d).getMonth() + 1,
-      ).padStart(2, '0')}`;
-
 const fmtMoney = (v: string | number) =>
   Number.isFinite(+v)
     ? (+v).toLocaleString('en-US', { maximumFractionDigits: 2 })
@@ -71,20 +67,14 @@ export default function HoldingsTable({ rows, loading }: Props) {
         field: 'subscribed',
         flex: 1.2,
         valueFormatter: (p: ValueFormatterParams<Holding>): string =>
-          (p.value as string)
-            ?.split('\n')
-            .map(fmtMoney)
-            .join('\n') ?? '',
+          (p.value as string)?.split('\n').map(fmtMoneyEnUS).join('\n') ?? '',
       },
       {
         headerName: '市值',
         field: 'market_value',
         flex: 1.2,
         valueFormatter: (p: ValueFormatterParams<Holding>): string =>
-          (p.value as string)
-            ?.split('\n')
-            .map(fmtMoney)
-            .join('\n') ?? '',
+          (p.value as string)?.split('\n').map(fmtMoneyEnUS).join('\n') ?? '',
       },
       {
         headerName: '含息後總額',
@@ -92,7 +82,7 @@ export default function HoldingsTable({ rows, loading }: Props) {
         flex: 1.2,
         valueFormatter: (p: ValueFormatterParams<Holding>): string => {
           const v = p.value as number | null | undefined;
-          return v == null || !Number.isFinite(v) ? 'N/A' : fmtMoney(v);
+          return v == null || !Number.isFinite(v) ? 'N/A' : fmtMoneyEnUS(v);
         },
       },
 
