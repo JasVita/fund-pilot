@@ -57,7 +57,7 @@ export const useReportGenerator = ({
       }));
 
       /* ---- B. dividend rows (optional, filtered by fund) ------- */
-      const divQs = `?investor=${encodeURIComponent(investor)}` + (fundId ? `&fund_id=${fundId}` : "");
+      const divQs = `?investor=${encodeURIComponent(investor)}` // + (fundId ? `&fund_id=${fundId}` : "");
       const divRes = await fetch(`${API_BASE}/investors/holdings/dividends${divQs}`, { credentials: "include" });
       const { rows: dividendRows = [] } = divRes.ok ? await divRes.json() : {};
       

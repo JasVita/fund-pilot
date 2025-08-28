@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { X, Search, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import InvestorPortfolioCard from "./InvestorPortfolioCard";
 import type { Investor } from "./InvestorPortfolioTable";

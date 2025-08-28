@@ -32,7 +32,7 @@ export function usePPTGenerator({ defaultInvestor, fundId }: { defaultInvestor: 
 
 
       /* B. dividend rows (optional) */
-      const divQs = `?investor=${encodeURIComponent(defaultInvestor)}` + (fundId ? `&fund_id=${fundId}` : "") 
+      const divQs = `?investor=${encodeURIComponent(defaultInvestor)}` // + (fundId ? `&fund_id=${fundId}` : "") 
       const divRes = await fetch( `${API_BASE}/investors/holdings/dividends${divQs}`, { credentials: "include" } ); 
       const { rows: dividendRows = [] } = divRes.ok ? await divRes.json() : {};
 
