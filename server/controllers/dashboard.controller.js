@@ -239,7 +239,8 @@ exports.upsertDividendYields = async (req, res) => {
     ? delete_years.map(Number).filter((y) => Number.isFinite(y) && y >= 2000 && y <= 2100)
     : [];
 
-  const uid = req.user?.id || null; // set by requireAuth
+  // const uid = req.user?.id || null; // set by requireAuth
+  const uid = req.auth?.sub ?? null; // JWT subject from requireAuth
 
   try {
     await pool.query("BEGIN");

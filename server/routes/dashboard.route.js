@@ -16,11 +16,11 @@ router.get("/dashboard/aum",                   requireAuth, requireRole, aumHist
 router.get("/dashboard/dealing-calendar",      requireAuth, requireRole, dealingCalendar);
 
 /* ── Annualized Dividend Yield (%) per fund/year ───────────── */
-router.get("/dashboard/dividend-yields",  requireAuth, requireSuper, getDividendYields);
+router.get("/dashboard/dividend-yields",  requireAuth, requireRole,  getDividendYields);
 router.post("/dashboard/dividend-yields", requireAuth, requireSuper, upsertDividendYields);
 
 /* Optional aliases (in case router is mounted differently) */
-router.get("/dividend-yields",  requireAuth, requireSuper, getDividendYields);
+router.get("/dividend-yields",  requireAuth, requireRole, getDividendYields);
 router.post("/dividend-yields", requireAuth, requireSuper, upsertDividendYields);
 
 /* ── admin-only extras ────────────────────────────────── */

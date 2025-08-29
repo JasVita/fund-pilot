@@ -107,15 +107,14 @@ export default function DashboardPage() {
     let mounted = true;
     (async () => {
       try {
-        const r = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+        const r = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
         if (!mounted) return;
         if (r.ok) {
-          const me = await r.json();              // { email, name, role, ... }
-          const newRole = me.role ?? "user";
+          const j = await r.json();                      // { ok: true, user: {...} }
+          const newRole = j?.user?.role ?? "user";
           setRole(newRole);
           try { localStorage.setItem("fp_role", newRole); } catch {}
         } else {
-          // soft-fallback to cache
           const cached = localStorage.getItem("fp_role");
           if (cached) setRole(cached);
         }
@@ -142,19 +141,20 @@ export default function DashboardPage() {
 
   // load/save per-fund settings from/to localStorage [DY-GET] Load dividend yields from backend when fund changes 
   useEffect(() => {
-    if (fundId == null) return;
+    // if (fundId == null || !isSuper) { setDivAnnualized({}); return; }
+    if (fundId == null) { setDivAnnualized({}); return; }
     (async () => {
       try {
-        const r = await fetch(
-          `${API_BASE}/dashboard/dividend-yields?fund_id=${fundId}`,
-          { credentials: "include" }
-        );
+        const r = await fetch(`${API_BASE}/dashboard/dividend-yields?fund_id=${fundId}`, {
+          credentials: "include"
+        });
         setDivAnnualized(r.ok ? await r.json() : {});
       } catch {
         setDivAnnualized({});
       }
     })();
   }, [fundId]);
+
 
   // dialog draft model
   const [draftRates, setDraftRates] = useState<Record<string, string>>({});
@@ -167,7 +167,7 @@ export default function DashboardPage() {
 
   /* [DY-POST] Save edited yields to backend */
 const handleSaveYield = async () => {
-  if (fundId == null) return;
+  if (fundId == null || !isSuper) return;
 
   // 1) normalize entries -> [year, number] (NaN for blanks)
   const rawEntries: [string, number][] = Object.entries(draftRates).map(
@@ -618,9 +618,7 @@ const handleSaveYield = async () => {
           <CardHeader className="flex items-center justify-between">
             <CardTitle>NAV Value Totals vs Dividends</CardTitle>
 
-            {/* right side: yields + (optional) edit */}
             <div className="flex items-center gap-3">
-              {/* read-only badges for everyone */}
               <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="font-medium">Annualized Dividend Yield (%)</span>
                 {yearsInChart.map((y) => (
@@ -629,16 +627,14 @@ const handleSaveYield = async () => {
                   </Badge>
                 ))}
               </div>
-
-              {/* edit only for super users */}
               {isSuper && (
                 <Button variant="ghost" size="icon" onClick={() => setYieldDialogOpen(true)}>
                   <Pencil className="h-4 w-4" />
                 </Button>
               )}
-
             </div>
           </CardHeader>
+
 
           <CardContent>
             <div className={chartBox}>
@@ -658,7 +654,7 @@ const handleSaveYield = async () => {
           </CardContent>
         </Card>
         {/* ── Annualized Dividend Yield editor ───────────────────────────── */}
-        <Dialog open={yieldDialogOpen} onOpenChange={setYieldDialogOpen}>
+        <Dialog open={isSuper && yieldDialogOpen} onOpenChange={(open) => isSuper && setYieldDialogOpen(open)}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Annualized Dividend Yield (%)</DialogTitle>
