@@ -33,3 +33,20 @@ exports.loginEmail = async (req, res) => {
   res.cookie("fp_jwt", token, { httpOnly: true, sameSite: "lax" });
   res.json({ ok: true });
 };
+
+/** Who am I? Used by the dashboard to decide if the pencil shows. */
+exports.me = (req, res) => {
+  // requireAuth puts the verified payload on req.auth
+  const u = req.auth || {};
+  console.log("[auth.me] token verified, sending user:", u);
+
+  // return a flat shape the frontend expects
+  res.json({
+    sub:        u.sub ?? u.id ?? null,
+    email:      u.email ?? null,
+    name:       u.name ?? null,
+    avatar:     u.avatar ?? null,
+    role:       u.role || "user",
+    company_id: u.company_id ?? null,
+  });
+};

@@ -192,3 +192,95 @@ exports.dealingCalendar = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+/** GET /dashboard/dividend-yields?fund_id=5
+ *  → { "2024": 6.5, "2025": 7.2 }
+ */
+exports.getDividendYields = async (req, res) => {
+  const fundId = Number(req.query.fund_id);
+  if (!Number.isFinite(fundId)) {
+    return res.status(400).json({ error: "fund_id is required" });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT yr, annualized_yield_pct
+         FROM dividend_yield
+        WHERE fund_id = $1
+        ORDER BY yr`,
+      [fundId]
+    );
+
+    const out = {};
+    for (const r of rows) out[String(r.yr)] = Number(r.annualized_yield_pct);
+    res.json(out);
+  } catch (err) {
+    console.error("getDividendYields:", err);
+    res.status(500).json({ error: "server_error" });
+  }
+};
+
+/** POST /dashboard/dividend-yields
+ *  body: { fund_id: 5, rates: { "2024": 6.5, "2025": 7.2 }, delete_years: [2024] }
+ *  auth: super
+ */
+exports.upsertDividendYields = async (req, res) => {
+  const { fund_id, rates, delete_years } = req.body || {};
+  const fundId = Number(fund_id);
+  if (!Number.isFinite(fundId)) return res.status(400).json({ error: "fund_id required" });
+
+  // sanitize upsserts
+  const entries = Object.entries(rates || {})
+    .map(([y, v]) => [Number(y), Number(v)])
+    .filter(([yr, pct]) => Number.isFinite(yr) && yr >= 2000 && yr <= 2100 && Number.isFinite(pct) && pct >= 0 && pct <= 100);
+
+  // sanitize deletes
+  const delYears = Array.isArray(delete_years)
+    ? delete_years.map(Number).filter((y) => Number.isFinite(y) && y >= 2000 && y <= 2100)
+    : [];
+
+  const uid = req.user?.id || null; // set by requireAuth
+
+  try {
+    await pool.query("BEGIN");
+
+    // A) deletes (blank fields become '—' by removing rows)
+    if (delYears.length) {
+      await pool.query(
+        `DELETE FROM dividend_yield
+          WHERE fund_id = $1 AND yr = ANY($2::int[])`,
+        [fundId, delYears]
+      );
+    }
+
+    // B) upserts
+    if (entries.length) {
+      let i = 1;
+      const params = [];
+      const valuesSQL = entries
+        .map(([yr, pct]) => {
+          params.push(fundId, yr, pct, uid, uid);
+          return `($${i++}, $${i++}, $${i++}, $${i++}, $${i++})`;
+        })
+        .join(",");
+
+      const sql = `
+        INSERT INTO dividend_yield (fund_id, yr, annualized_yield_pct, created_by, updated_by)
+        VALUES ${valuesSQL}
+        ON CONFLICT (fund_id, yr)
+        DO UPDATE SET
+          annualized_yield_pct = EXCLUDED.annualized_yield_pct,
+          updated_by           = EXCLUDED.updated_by,
+          updated_at           = (NOW() AT TIME ZONE 'Asia/Hong_Kong')
+      `;
+      await pool.query(sql, params);
+    }
+
+    await pool.query("COMMIT");
+    res.json({ ok: true, upserted: entries.length, deleted: delYears.length });
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    console.error("upsertDividendYields:", err);
+    res.status(500).json({ error: "server_error" });
+  }
+};

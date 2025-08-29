@@ -131,6 +131,30 @@ const TABLE_DEFS = [
     `,
   },
 
+  /* ---------- dividend_yield (NEW) ------------------------------- */
+  {
+    name: "dividend_yield",
+    ddl: `
+      /* one row per fund + year; value stored as percent (e.g. 6.50) */
+      CREATE TABLE IF NOT EXISTS dividend_yield (
+        fund_id               INTEGER NOT NULL
+                               REFERENCES fundlist(id) ON DELETE CASCADE,
+        yr                    INTEGER NOT NULL CHECK (yr BETWEEN 2000 AND 2100),
+        annualized_yield_pct  NUMERIC(6,3) NOT NULL
+                               CHECK (annualized_yield_pct >= 0 AND annualized_yield_pct <= 100),
+        notes                 TEXT,
+
+        created_at            TIMESTAMP DEFAULT (NOW() AT TIME ZONE 'Asia/Hong_Kong'),
+        updated_at            TIMESTAMP DEFAULT (NOW() AT TIME ZONE 'Asia/Hong_Kong'),
+        created_by            INTEGER REFERENCES users(id),
+        updated_by            INTEGER REFERENCES users(id),
+
+        PRIMARY KEY (fund_id, yr)
+      );
+      CREATE INDEX IF NOT EXISTS dividend_yield_fund_idx ON dividend_yield (fund_id);
+    `,
+  },
+
   /* ---------- holdings_change ------------------------------------ */
   {
     name: "holdings_change",
