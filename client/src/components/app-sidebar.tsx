@@ -45,7 +45,7 @@ const FundPilotLogo = ({ className }: LucideProps) => (
       fill
       sizes="128px"
       className="object-contain"
-      priority
+      // priority
     />
   </span>
 );

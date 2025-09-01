@@ -1,85 +1,61 @@
-// src/app/(protected)/layout.tsx
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+// /app/(protected)/layout.tsx
+"use client";
 
+import * as React from "react";
 import "@/app/globals.css";
-
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import { Separator } from "@/components/ui/separator";
-import { AuthProvider } from "@/contexts/AuthContext";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
 
-export const metadata: Metadata = { title: "Fund Pilot", description: "" };
+  // --- SSR skeleton to keep server and client HTML identical
+  if (!mounted) {
+    return (
+      <div
+        suppressHydrationWarning
+        className="flex min-h-svh w-full"
+        style={
+          {
+            // keep the same CSS vars so layout doesn’t jump
+            "--sidebar-width": "16rem",
+            "--sidebar-width-icon": "3rem",
+          } as React.CSSProperties
+        }
+      >
+        {/* placeholder sidebar rail width on md+ */}
+        <aside
+          suppressHydrationWarning
+          className="hidden md:block shrink-0"
+          style={
+            {
+              "--sidebar-width": "16rem",
+              "--sidebar-width-icon": "3rem",
+            } as React.CSSProperties
+          }
+        />
+        <main className="flex-1">{children}</main>
+      </div>
+    );
+  }
 
-export default function ProtectedLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+  // --- real client layout after hydration
   return (
     <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 items-center gap-2 px-4">
-          <SidebarTrigger className="-ml-1" />
-          {/* <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="#">Building Your Wealth Here</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Data Fetching</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb> */}
-        </header>
-        {children}
-      </SidebarInset>
+      <div
+        data-slot="sidebar-wrapper"
+        style={
+          {
+            "--sidebar-width": "16rem",
+            "--sidebar-width-icon": "3rem",
+          } as React.CSSProperties
+        }
+        className="group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full"
+      >
+        <AppSidebar />
+        <SidebarInset className="flex-1">{children}</SidebarInset>
+      </div>
     </SidebarProvider>
   );
 }
-
-// export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
-//   return (
-//     <html lang="en">
-//       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-//         <AuthProvider>
-//           <SidebarProvider>
-//             <AppSidebar />
-//             <SidebarInset>
-//               <header className="flex h-16 items-center gap-2 px-4">
-//                 <SidebarTrigger className="-ml-1" />
-//                 <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
-//                 <Breadcrumb>
-//                   <BreadcrumbList>
-//                     <BreadcrumbItem className="hidden md:block">
-//                       <BreadcrumbLink href="#">Building Your Wealth Here</BreadcrumbLink>
-//                     </BreadcrumbItem>
-//                     <BreadcrumbSeparator className="hidden md:block" />
-//                     <BreadcrumbItem>
-//                       <BreadcrumbPage>Data Fetching</BreadcrumbPage>
-//                     </BreadcrumbItem>
-//                   </BreadcrumbList>
-//                 </Breadcrumb>
-//               </header>
-//               {children}
-//             </SidebarInset>
-//           </SidebarProvider>
-//         </AuthProvider>
-//       </body>
-//     </html>
-//   );
-// }

@@ -8,7 +8,10 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { KPICard } from "./KPICard";
 import GaugeRing from "./GaugeRing";
-import { Download, Filter, DollarSign, TrendingUp, AlertTriangle, Clock3 } from "lucide-react";
+import { Download, Filter, DollarSign, TrendingUp, AlertTriangle, Clock3, Pencil } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 import { Line, Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler } from "chart.js";
@@ -95,6 +98,119 @@ export default function DashboardPage() {
   /* ── client-side “last updated” stamp ─────────────── */
   const [clientTime, setClientTime] = useState<string>(""); 
   useEffect(() => { setClientTime(new Date().toLocaleString()); }, []);
+
+  // who can edit?  (⚠️ wire this to your real auth; this reads from localStorage for now)
+  const [role, setRole] = useState<string>("user");
+
+  /* load role from backend; fall back to cached localStorage */
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
+        if (!mounted) return;
+        if (r.ok) {
+          const j = await r.json();                      // { ok: true, user: {...} }
+          const newRole = j?.user?.role ?? "user";
+          setRole(newRole);
+          try { localStorage.setItem("fp_role", newRole); } catch {}
+        } else {
+          const cached = localStorage.getItem("fp_role");
+          if (cached) setRole(cached);
+        }
+      } catch {
+        const cached = localStorage.getItem("fp_role");
+        if (cached) setRole(cached);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const isSuper = role === "super";
+
+
+  // Annualized Dividend Yield (%) storage, per fund
+  const [divAnnualized, setDivAnnualized] = useState<Record<string, number>>({});
+  const [yieldDialogOpen, setYieldDialogOpen] = useState(false);
+
+  // years present in the NAV/Dividend dataset (e.g. ["2024", "2025"])
+  const yearsInChart = useMemo(
+    () => [...new Set(navRows.map(r => String(r.period).slice(0, 4)))],
+    [navRows]
+  );
+
+  // load/save per-fund settings from/to localStorage [DY-GET] Load dividend yields from backend when fund changes 
+  useEffect(() => {
+    // if (fundId == null || !isSuper) { setDivAnnualized({}); return; }
+    if (fundId == null) { setDivAnnualized({}); return; }
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/dashboard/dividend-yields?fund_id=${fundId}`, {
+          credentials: "include"
+        });
+        setDivAnnualized(r.ok ? await r.json() : {});
+      } catch {
+        setDivAnnualized({});
+      }
+    })();
+  }, [fundId]);
+
+
+  // dialog draft model
+  const [draftRates, setDraftRates] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!yieldDialogOpen) return;
+    const d: Record<string, string> = {};
+    yearsInChart.forEach(y => { d[y] = divAnnualized[y]?.toString() ?? ""; });
+    setDraftRates(d);
+  }, [yieldDialogOpen, yearsInChart, divAnnualized]);
+
+  /* [DY-POST] Save edited yields to backend */
+const handleSaveYield = async () => {
+  if (fundId == null || !isSuper) return;
+
+  // 1) normalize entries -> [year, number] (NaN for blanks)
+  const rawEntries: [string, number][] = Object.entries(draftRates).map(
+    ([y, v]): [string, number] => [y, (v ?? "").trim() === "" ? NaN : Number(v)]
+  );
+
+  // 2) keep only finite percentages in [0, 100]
+  const validEntries: [string, number][] = rawEntries.filter(
+    ([, n]) => Number.isFinite(n) && n >= 0 && n <= 100
+  );
+
+  // 3) to object with a precise type
+  const rates: Record<string, number> = Object.fromEntries(validEntries);
+
+  // 4) years to delete = left blank AND previously existed
+  const delete_years: number[] = yearsInChart
+    .filter((y) => ((draftRates[y] ?? "").trim() === "") && divAnnualized[y] != null)
+    .map((y) => Number(y));
+
+  try {
+    const r = await fetch(`${API_BASE}/dashboard/dividend-yields`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ fund_id: fundId, rates, delete_years }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+
+    // reflect immediately in UI
+    setDivAnnualized((prev) => {
+      const next = { ...prev };
+      delete_years.forEach((y) => delete (next as any)[String(y)]);
+      validEntries.forEach(([y, n]) => { (next as any)[y] = n; });
+      return next;
+    });
+
+    setYieldDialogOpen(false);
+  } catch (err) {
+    console.error("Failed to save dividend yields:", err);
+  }
+};
+
+
 
   /* fetch funds once ------------------------------------------------ */
   useEffect(() => {
@@ -499,9 +615,27 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex items-center justify-between">
             <CardTitle>NAV Value Totals vs Dividends</CardTitle>
+
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-medium">Annualized Dividend Yield (%)</span>
+                {yearsInChart.map((y) => (
+                  <Badge key={y} variant="secondary" className="font-mono">
+                    {y}: {divAnnualized[y] != null ? divAnnualized[y].toFixed(2) : "—"}%
+                  </Badge>
+                ))}
+              </div>
+              {isSuper && (
+                <Button variant="ghost" size="icon" onClick={() => setYieldDialogOpen(true)}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </CardHeader>
+
+
           <CardContent>
             <div className={chartBox}>
               <Bar
@@ -519,6 +653,49 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+        {/* ── Annualized Dividend Yield editor ───────────────────────────── */}
+        <Dialog open={isSuper && yieldDialogOpen} onOpenChange={(open) => isSuper && setYieldDialogOpen(open)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Annualized Dividend Yield (%)</DialogTitle>
+              <p className="text-xs text-muted-foreground">中文：派息年化%</p>
+            </DialogHeader>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {yearsInChart.length ? (
+                yearsInChart.map((y) => (
+                  <div key={y} className="space-y-1">
+                    <Label htmlFor={`yield-${y}`}>{y}</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id={`yield-${y}`}
+                        inputMode="decimal"
+                        placeholder="e.g. 6.5"
+                        value={draftRates[y] ?? ""}
+                        onChange={(e) =>
+                          setDraftRates((prev) => ({ ...prev, [y]: e.target.value }))
+                        }
+                      />
+                      <span className="text-sm text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  No years detected from chart data.
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="mt-2">
+              <Button variant="outline" onClick={() => setYieldDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveYield}>Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </div>
 
       {/* Outstanding Redemptions widget */}

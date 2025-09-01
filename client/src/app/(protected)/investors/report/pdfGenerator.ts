@@ -1,13 +1,5 @@
 import { jsPDF } from "jspdf";
-import {
-  toStr,
-  fmtYYYYMM,
-  fmtMoney,
-  fmtMoneyLines,
-  to2dp,
-  initials,
-} from "@/lib/report-format";
-
+import { toStr, fmtYYYYMM, fmtMoney, fmtMoneyLines, to2dp, initials } from "@/lib/report-format";
 
 /* ---------- types ------------------------------------------------ */
 interface ReportData {
@@ -67,17 +59,39 @@ const getLogoCoverImg = () => fetchAsDataURL("/logo-white-cover.png", "logoCover
 const getLogoTableBlack = () => fetchAsDataURL("/logo-black-table.png", "logoTableBlk");
 const getLogoDisclaimer = () => fetchAsDataURL("/logo-white-disclaimer.png", "logoDisc");
 
-/* ---------- ZhengTiFan font loader ------------------------------ */
+/* ---------- ZhengTiFan font loader (robust) ---------------------- */
 async function ensureZhengTiFan(doc: jsPDF) {
   const FONT_FILE = "ZhengTiFan.ttf";
   const FONT_NAME = "ZhengTiFan";
-  const CACHE_KEY = "_ZhengTiFan_base64";
+  const CACHE_KEY = "_ZhengTiFan_base64_v2";
 
+  // already cached?
   let base64: string | undefined = (ensureZhengTiFan as any)[CACHE_KEY];
   if (!base64) {
-    const dataUrl = await fetchAsDataURL(`/fonts/${FONT_FILE}`, CACHE_KEY);
-    base64 = dataUrl.split(",")[1];
-    (ensureZhengTiFan as any)[CACHE_KEY] = base64;
+    try {
+      // same-origin absolute URL avoids weird routing
+      const url = typeof window !== "undefined"
+        ? new URL(`/fonts/${FONT_FILE}`, window.location.origin).toString()
+        : `/fonts/${FONT_FILE}`;
+
+      const res = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
+      if (!res.ok) throw new Error(`font HTTP ${res.status}`);
+
+      const buf = await res.arrayBuffer();
+
+      // ArrayBuffer -> base64 (chunked to avoid call stack limits)
+      const bytes = new Uint8Array(buf);
+      const chunk = 0x8000;
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      base64 = btoa(binary);
+      (ensureZhengTiFan as any)[CACHE_KEY] = base64;
+    } catch (e) {
+      console.warn("[pdf] Failed to load ZhengTiFan.ttf, falling back to Helvetica.", e);
+      return; // ← do NOT throw, continue with built-in fonts
+    }
   }
 
   (doc as any).addFileToVFS(FONT_FILE, base64);
@@ -343,6 +357,96 @@ export async function generateInvestmentReport(data: ReportData) {
         zebra++;
       }
     }
+
+    /* ===== NEW: totals label + 加總 rows ========================= */
+
+    // helpers to parse numbers safely
+    const parseNum = (s: string) => {
+      const n = Number(String(s).replace(/[, \u00A0]/g, "").trim());
+      return Number.isFinite(n) ? n : 0;
+    };
+    const sumMoneyLines = (s: string | undefined) =>
+      String(s ?? "")
+        .split("\n")
+        .map(parseNum)
+        .reduce((a, b) => a + b, 0);
+
+    // 1) totals per your rules
+    let totalSub = 0, totalMkt = 0, totalAfter = 0;
+    (data.tableData || []).forEach(r => {
+      const sub = sumMoneyLines(r.subscriptionAmount);
+      const mkt = sumMoneyLines(r.marketValue);
+      const after = (r.totalAfterDeduction && r.totalAfterDeduction.trim() !== "")
+        ? sumMoneyLines(r.totalAfterDeduction)
+        : mkt; // use 市值 if 含息後總額 missing
+      totalSub   += sub;
+      totalMkt   += mkt;
+      totalAfter += after;
+    });
+    const totalPct = totalSub > 0 ? ((totalAfter - totalSub) / totalSub) * 100 : 0;
+
+    // 2) formatted strings
+    const fmtUSD = (n: number) =>
+      n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const totalSubStr   = fmtUSD(totalSub);
+    const totalMktStr   = fmtUSD(totalMkt);
+    const totalAfterStr = fmtUSD(totalAfter);
+    const totalPctStr   = `${totalPct >= 0 ? "+" : ""}${totalPct.toFixed(2)}%`;
+
+    // 3) LABEL ROW (empty first 3 cols)
+    const labelCells = ["", "", "", "總認購金額", "總市值", "含息後總額", "總盈虧（%）"];
+    const wrappedLabel = labelCells.map((txt, i) =>
+      doc.splitTextToSize(String(txt), colW[i] - 4)
+    ) as string[][];
+    const labelH = Math.max(...wrappedLabel.map(w => w.length)) * lineGap + 4;
+
+    if (y + labelH > pageH - BOTTOM_MARGIN) y = startNewTablePage();
+
+    // draw label row background
+    colW.forEach((w, i) => doc.setFillColor(208, 206, 206).rect(colX[i], y, w, labelH, "F"));
+
+    // draw label text (make the last label red like header style)
+    wrappedLabel.forEach((lines, colIdx) => {
+      const cx = colX[colIdx] + colW[colIdx] / 2;
+      lines.forEach((ln: string, li: number) => {
+        if (colIdx === 6) doc.setTextColor(192, 0, 0); else doc.setTextColor(0);
+        doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
+      });
+    });
+    y += labelH + TABLE_GAP;
+
+    // 4) 加總 ROW
+    const totalsCells = [
+      "加總", "", "",
+      totalSubStr, totalMktStr, totalAfterStr, totalPctStr,
+    ];
+    const wrappedTotals = totalsCells.map((txt, i) =>
+      doc.splitTextToSize(String(txt), colW[i] - 4)
+    ) as string[][];
+    const totalsH = Math.max(...wrappedTotals.map(w => w.length)) * lineGap + 4;
+
+    if (y + totalsH > pageH - BOTTOM_MARGIN) y = startNewTablePage();
+
+    // darker grey for totals row
+    colW.forEach((w, i) => doc.setFillColor(208, 206, 206).rect(colX[i], y, w, totalsH, "F"));
+
+    wrappedTotals.forEach((lines, colIdx) => {
+      const cx = colX[colIdx] + colW[colIdx] / 2;
+      lines.forEach((ln: string, li: number) => {
+        // colour the P&L cell red/green like other rows
+        if (colIdx === 6) {
+          const clean = ln.replace(/[\s\u00A0]/g, "");
+          if (/^-/.test(clean))      doc.setTextColor(192, 0, 0);
+          else if (/^\+|\d/.test(clean)) doc.setTextColor(0, 192, 0);
+          else                       doc.setTextColor(0, 0, 0);
+        } else {
+          doc.setTextColor(0);
+        }
+        doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
+      });
+    });
+
+    y += totalsH + TABLE_GAP;
     
   /* ============ Page 4 – Dividend‑history table (3 columns) =============== */
   if (data.dividendRows && data.dividendRows.length) {

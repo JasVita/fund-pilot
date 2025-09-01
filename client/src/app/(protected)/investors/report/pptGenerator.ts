@@ -5,7 +5,6 @@
 
 import PptxGenJS from "pptxgenjs";
 import { fmtYYYYMM, fmtMoney, to2dp } from "@/lib/report-format";
-
 declare module "pptxgenjs" {
   interface TableOptions {
     autoPageSlideCallback?: (slide: PptxGenJS.Slide, idx: number) => void;
@@ -226,6 +225,34 @@ export async function generateInvestmentPpt(data: ReportData) {
         profitCell(r.estimatedProfit),
       ]);
     });
+
+    // ⬇︎ NEW: append 加總 row when totals are provided
+    const hasTotals =
+      (data.totalSubscriptionAmount && data.totalSubscriptionAmount !== "") ||
+      (data.totalMarketValue && data.totalMarketValue !== "") ||
+      (data.totalAfterDeduction && data.totalAfterDeduction !== "") ||
+      (data.totalProfit && data.totalProfit !== "");
+
+    if (hasTotals) {
+      // ❶ labels above totals (empty first 3 cols)
+      allRows.push([
+        "", "", "",
+        { text: "總認購金額", options: { bold: true } },
+        { text: "總市值",     options: { bold: true } },
+        { text: "含息後總額", options: { bold: true } },
+        { text: "總盈虧（%）", options: { bold: true, color: "C00000" } },
+      ]);
+      
+      allRows.push([
+        { text: "加總", options: { bold: true } },   // 產品名稱
+        "",                                          // 認購時間
+        "",                                          // 數據截止
+        fmtMoney(data.totalSubscriptionAmount),
+        fmtMoney(data.totalMarketValue),
+        fmtMoney(to2dp(data.totalAfterDeduction)),
+        profitCell(data.totalProfit),                // adds +/- and %
+      ]);
+    }
 
     // single call – pptxgenjs paginates, we overlay afterwards
     // addPaginatedTable(pptx, allRows, logoTable);
