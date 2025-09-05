@@ -1,8 +1,4 @@
 "use client";
-
-import { useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import InvestorPortfolioTable, { Investor } from "./InvestorPortfolioTable";
 
 /* -------- props from parent ----------------------------------- */
@@ -14,6 +10,7 @@ type Props = {
   quickFilter: string; 
   onPageChange: (n: number) => void;
   onSelectRow: (r: Investor) => void;
+  onOpenFiles?: (r: Investor) => void; 
 };
 
 export default function InvestorPortfolioCard(props: Props) {
@@ -43,6 +40,7 @@ export default function InvestorPortfolioCard(props: Props) {
           {...props}
           // quickFilter={filter}   /* – pass down the current filter */
           quickFilter={props.quickFilter}
+          onOpenFiles={props.onOpenFiles}
         />
       </div>
     </div>

@@ -10,10 +10,12 @@ import type {
   CellClassParams,
   ValueFormatterParams,
   ICellRendererParams,
+  ValueGetterParams, 
   RowClickedEvent,
   GridReadyEvent,
   GridApi,
 } from 'ag-grid-community';
+import { Badge } from "@/components/ui/badge";
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { fmtThousands } from '@/lib/format';
 
@@ -38,6 +40,7 @@ type Props = {
   quickFilter: string;          // 🔍 text typed by the user
   onPageChange: (n: number) => void;
   onSelectRow: (r: Investor) => void;
+  onOpenFiles?: (r: Investor) => void; 
 };
 
 const PAGE_SIZE = 20;
@@ -50,6 +53,7 @@ export default function InvestorPortfolioTable({
   quickFilter,
   onPageChange,
   onSelectRow,
+  onOpenFiles,
 }: Props) {
   const gridApiRef = useRef<GridApi<Investor> | null>(null);
 
@@ -111,8 +115,40 @@ export default function InvestorPortfolioTable({
         valueGetter: p => p.data?.status ?? '',
         cellRenderer: (p: ICellRendererParams<Investor>) => p.value ?? '',
       },
+      // -------- Documents column (no field; use colId + renderer) --------
+      {
+        headerName: 'Documents',
+        colId: 'documents',
+        flex: 1,
+        sortable: false,
+        filter: false,
+        cellRenderer: (p: ICellRendererParams<Investor>) => {
+          const row = p.data;
+          return (
+            <Badge
+              variant="secondary"
+              role="button"
+              tabIndex={0}
+              className="cursor-pointer rounded-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (row && onOpenFiles) onOpenFiles(row);
+              }}
+              onKeyDown={(e) => {
+                if ((e.key === "Enter" || e.key === " ") && row && onOpenFiles) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onOpenFiles(row);
+                }
+              }}
+            >
+              Details
+            </Badge>
+          );
+        },
+      },
     ],
-    [],
+    [onOpenFiles],
   );
 
   /* ----- grid ready -------------------------------------------- */

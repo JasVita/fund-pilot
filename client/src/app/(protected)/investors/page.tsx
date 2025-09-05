@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { X, Search, Download } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { X, Search, Download, ArrowUpDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,6 +9,7 @@ import InvestorPortfolioCard from "./InvestorPortfolioCard";
 import type { Investor } from "./InvestorPortfolioTable";
 
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import ReportGeneratorButton from "./tables/ReportGeneratorButton";
@@ -51,8 +52,6 @@ const fmtDateList = (s: string | null | undefined) =>
     );
   });
 
-
-
 /* simple USD fmt so it matches your style */
 const usdStd = (v: number) =>
   new Intl.NumberFormat("en-US", {
@@ -88,6 +87,202 @@ type DividendRow = {
 
 type Fund = { fund_id: number; fund_name: string };
 
+// --- add near your other types ---
+type FileRow = {
+  id: number;
+  filename: string;
+  type: "is" | "cn" | "other";
+  class: string;
+  date: string;           // ISO
+  size_bytes?: number;
+};
+
+const MOCK_FILES: FileRow[] = [
+  { id: 1, filename: "Feng_Fan_20220228.pdf", type: "is", class: "Class A - Lead", date: "2022-02-28" },
+  { id: 2, filename: "CN_213602974.pdf",      type: "cn", class: "—",              date: "2025-07-14" },
+  // add more if you want to fill the table…
+];
+
+const USE_MOCK_FILES = true;
+// Keep filename readable but short (preserve extension)
+const FILE_NAME_MAX = 32;
+function middleEllipsis(name: string, max = FILE_NAME_MAX) {
+  if (!name || name.length <= max) return name;
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot) : "";
+  const base = dot > 0 ? name.slice(0, dot) : name;
+
+  const keep = Math.max(3, max - ext.length - 1); // 1 for ellipsis
+  const head = Math.ceil(keep * 0.6);
+  const tail = keep - head;
+  return `${base.slice(0, head)}…${base.slice(-tail)}${ext}`;
+}
+
+function FilesTable({
+  rows,
+  loading,
+  title,
+}: {
+  rows: { id:number; filename:string; type:"is"|"cn"|"other"; class:string; date:string; size_bytes?:number }[];
+  loading: boolean;
+  title?: string;
+}) {
+  const typeLabel = (t: "is"|"cn"|"other") =>
+    t === "is" ? "Investor Statement" : t === "cn" ? "Contract Note" : "Other";
+
+  const fmtDate = (s: string) => {
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? s : d.toLocaleDateString("en-CA");
+  };
+
+  // ── inline filters & sort state ──────────────────────────────
+  const [typeFilter, setTypeFilter]   = useState<"all"|"is"|"cn"|"other">("all");
+  const [classFilter, setClassFilter] = useState<string>("all");
+  const [dateSort, setDateSort]       = useState<"desc"|"asc">("desc");
+
+  const dateLabel = dateSort === "desc" ? "Date ↓" : "Date ↑";
+
+  // unique class options from current data
+  const classOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) set.add(r.class || "—");
+    return Array.from(set);
+  }, [rows]);
+
+  // filtered + sorted rows (client-side)
+  const visibleRows = useMemo(() => {
+    const filtered = rows.filter(r => {
+      const mt = typeFilter === "all" || r.type === typeFilter;
+      const mc = classFilter === "all" || (r.class || "—") === classFilter;
+      return mt && mc;
+    });
+    const dir = dateSort === "desc" ? -1 : 1;
+    return filtered.sort(
+      (a, b) => (new Date(a.date).getTime() - new Date(b.date).getTime()) * dir
+    );
+  }, [rows, typeFilter, classFilter, dateSort]);
+
+  // columns add up to 100% (keeps table inside card)
+  const COLS = ["36%", "22%", "20%", "12%", "10%"] as const;
+
+  return (
+    <Card className="mt-4 min-w-0">
+      <CardHeader>
+        <CardTitle className="text-base font-semibold">
+          {title ?? "Files"}
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="p-6">
+        <div className="overflow-x-hidden">
+          <Table className="w-full table-fixed border-collapse [&_th]:align-top [&_th]:pt-0.5 [&_th]:pb-2 [&_th]:truncate [&_td]:truncate">
+            <colgroup>
+              {COLS.map((w, i) => <col key={i} style={{ width: w }} />)}
+            </colgroup>
+
+            <TableHeader>
+              <TableRow>
+                {/* File name stays a plain label */}
+                <TableHead className="whitespace-nowrap">File name</TableHead>
+
+                {/* Type header = Select itself */}
+                <TableHead className="align-middle">
+                  <Select value={typeFilter} onValueChange={(v)=>setTypeFilter(v as any)}>
+                    <SelectTrigger className="h-7 w-full text-xs">
+                      <SelectValue placeholder="All types" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-64">
+                      <SelectItem value="all">All types</SelectItem>
+                      <SelectItem value="is">Investor Statement</SelectItem>
+                      <SelectItem value="cn">Contract Note</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TableHead>
+
+                {/* Class header = Select itself */}
+                <TableHead className="align-middle">
+                  <Select value={classFilter} onValueChange={setClassFilter}>
+                    <SelectTrigger className="h-7 w-full text-xs">
+                      <SelectValue placeholder="All classes" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-64">
+                      <SelectItem value="all">All classes</SelectItem>
+                      {classOptions.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableHead>
+
+                {/* Date header = sort button with dynamic label */}
+                <TableHead className="align-middle">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => setDateSort(dateSort === "desc" ? "asc" : "desc")}
+                    title={`Sort by date ${dateSort === "desc" ? "ascending" : "descending"}`}
+                  >
+                    {dateLabel}
+                  </Button>
+                </TableHead>
+
+                {/* Download header keeps text so the column is clear */}
+                <TableHead className="text-right whitespace-nowrap pr-1">Download</TableHead>
+              </TableRow>
+            </TableHeader>
+
+
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">Loading…</TableCell>
+                </TableRow>
+              ) : visibleRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">No files</TableCell>
+                </TableRow>
+              ) : (
+                visibleRows.map((r, idx) => (
+                  <TableRow key={r.id ?? idx}>
+                    <TableCell title={r.filename}>
+                      <button
+                        className="block w-full text-left text-primary hover:underline truncate"
+                        onClick={() => { /* TODO: /files/signed-url?disposition=inline */ }}
+                      >
+                        {middleEllipsis(r.filename)}
+                      </button>
+                    </TableCell>
+
+                    <TableCell title={typeLabel(r.type)}>{typeLabel(r.type)}</TableCell>
+                    <TableCell title={r.class || "—"}>{r.class || "—"}</TableCell>
+                    <TableCell title={fmtDate(r.date)}>{fmtDate(r.date)}</TableCell>
+
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 p-0"
+                        onClick={() => { /* TODO: /files/signed-url?disposition=attachment */ }}
+                        aria-label={`Download ${r.filename}`}
+                        title="Download"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
 /* --------------------------------------------------------------- */
 export default function InvestorsPage() {
   /* ① fund list + current filter --------------------- */
@@ -114,28 +309,29 @@ export default function InvestorsPage() {
   const [divRows, setDivRows] = useState<DividendRow[]>([]);
   const [loadingDivs, setLoadingDivs] = useState(false);
 
+  // --- add new state (below your other useState calls) ---
+  const [filesInvestor, setFilesInvestor] = useState<string | null>(null);
+  const [filesRows, setFilesRows] = useState<FileRow[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  
   /* ----------------------------------------------------------------
      ✦ NEW  handleRowSelect adapter
      Keeps type-safety between InvestorRow → Investor
   ------------------------------------------------------------------ */
   const handleRowSelect = useCallback(
     (row: Investor) => {
-      let target = row;           // initial guess
-
+      setFilesInvestor(null);    
+      let target = row;
       if (!row.investor || row.investor.trim() === "") {
         const idx = rows.findIndex(r => r === row);
-        const prevNamed = [...rows]
-          .slice(0, idx)
-          .reverse()
+        const prevNamed = [...rows].slice(0, idx).reverse()
           .find(r => r.investor && r.investor.trim() !== "");
         if (prevNamed) target = prevNamed;
       }
-
       setSelected(target);
     },
     [rows],
   );
-
   /* ------------------------------------------------------------------ *
    * 1. load the fund list once
    * ------------------------------------------------------------------ */
@@ -257,6 +453,36 @@ export default function InvestorsPage() {
     })();
   }, [selected]);   
 
+  useEffect(() => {
+    if (!filesInvestor || selectedFund == null) { setFilesRows([]); return; }
+    setLoadingFiles(true);
+
+    // Always show mock first
+    setFilesRows(MOCK_FILES);
+
+    // Only try the API if you flip the flag
+    if (!USE_MOCK_FILES) {
+      (async () => {
+        try {
+          const u = new URL(`${API_BASE}/files`);
+          u.searchParams.set("fund_id", String(selectedFund));
+          u.searchParams.set("investor", filesInvestor);
+          u.searchParams.set("page", "1");
+          u.searchParams.set("page_size", "50");
+          const r = await fetch(u, { credentials: "include" });
+          if (r.ok) {
+            const j = await r.json() as { rows?: FileRow[] };
+            if (Array.isArray(j.rows)) setFilesRows(j.rows);
+          }
+        } finally {
+          setLoadingFiles(false);
+        }
+      })();
+    } else {
+      setLoadingFiles(false);
+    }
+  }, [filesInvestor, selectedFund]);
+
 
   /* ------------------------------------------------------------------ *
    *  UX helpers
@@ -265,6 +491,7 @@ export default function InvestorsPage() {
     setSelectedFund(Number(v));            // 1) switch fund
     setPage(1);                    // 2) reset paging
     setSelected(null);             // 3) close any drawer
+    setFilesInvestor(null);  
   };
 
   /* close detail on Esc ------------------------------------------ */
@@ -305,35 +532,30 @@ export default function InvestorsPage() {
       </div>
 
       {/* ---------- MAIN LAYOUT ---------- */}
-      {selected ? (
+      {(selected || filesInvestor) ? (
         <ResizablePanelGroup
           direction="horizontal"
           className="flex-1 min-w-0 h-[calc(100vh-10rem)]"
         >
-          {/* Left = table */}
-          {/* <ResizablePanel
-            defaultSize={70}
-            minSize={20}
-            maxSize={80}
-            className="pr-2 overflow-auto"
-          >
-            {TableCard}
-          </ResizablePanel> */}
-          {/* Left = table */}
+          {/* Left = investors table */}
           <ResizablePanel
-            defaultSize={70}
+            defaultSize={filesInvestor ? 55 : 60} 
             minSize={20}
             maxSize={80}
-            className="pr-2 overflow-auto"
+            className="pr-2 overflow-auto min-w-0"
           >
             <InvestorPortfolioCard
               rows={rows}
               loading={rows.length === 0 && page === 1}
               page={page}
               pageCount={pageCount}
-              onPageChange={setPage}          // keeps paging state in parent
-              onSelectRow={handleRowSelect}      // open the right-side drawer
+              onPageChange={setPage}
+              onSelectRow={handleRowSelect}
               quickFilter={quickFilter}
+              onOpenFiles={(row) => {
+                if (!selected) setSelected(row);                      // (optional) clear details selection
+                setFilesInvestor(row.investor ?? null); // 🟢 FILES mode
+              }}
             />
           </ResizablePanel>
 
@@ -341,25 +563,32 @@ export default function InvestorsPage() {
 
           {/* Right = detail */}
           <ResizablePanel
-            defaultSize={30}
+            defaultSize={filesInvestor ? 45 : 40}              // or keep your {filesInvestor ? 30 : 40}
             minSize={20}
-            maxSize={80}
-            className="flex flex-col overflow-auto p-6 space-y-4 bg-background shadow-lg relative"
-          >
-            <button
-              aria-label="Close"
-              onClick={() => setSelected(null)}
-              className="absolute top-4 right-4 rounded-md p-1 hover:bg-muted"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            maxSize={80}  
+            className="min-w-0 flex flex-col overflow-auto p-6 space-y-4 bg-background shadow-lg relative">
+            {/* 🔀 Switch the panel body based on mode */}
+            {filesInvestor ? (
+              // -------------------- FILES MODE --------------------
+              <FilesTable
+                rows={filesRows}
+                loading={loadingFiles}
+                title={`Files — ${filesInvestor}`}
+              />
+            ) : selected ? (
+              // -------------------- DETAILS MODE --------------------
+              <>
+                <button
+                  aria-label="Close"
+                  onClick={() => setSelected(null)}
+                  className="absolute top-4 right-4 rounded-md p-1 hover:bg-muted"
+                >
+                  <X className="h-5 w-5" />
+                </button>
 
             <h2 className="text-xl font-bold">{selected.investor}</h2>
             {/* holdings table */}
             <Card>
-              {/* <CardHeader>
-                  <CardTitle>Holdings (mock)</CardTitle>
-                </CardHeader> */}
               {/* make table area scrollable while header & footer stay fixed */}
               <CardContent className="p-6">
                 <div className="overflow-x-auto">
@@ -545,8 +774,13 @@ export default function InvestorsPage() {
                 </div>
               </CardContent>
             </Card>
-
-            {/* download CTA */}
+              </>
+            ) : (
+              /* EMPTY STATE */
+              <div className="text-sm text-muted-foreground">
+                Select an investor to view details, or click a “Details” badge to view files.
+              </div>
+            )}
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (
@@ -559,6 +793,10 @@ export default function InvestorsPage() {
           onPageChange={setPage}
           onSelectRow={handleRowSelect}
           quickFilter={quickFilter}
+          onOpenFiles={(row) => {
+            if (!selected) setSelected(row);                       // (optional) clear details selection
+            setFilesInvestor(row.investor ?? null); // 🟢 FILES mode
+          }}
         />
       )}
     </div>
