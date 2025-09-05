@@ -5,6 +5,7 @@ import { X, Search, Download, ArrowUpDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import FilesTable from "./FileTable";
 import InvestorPortfolioCard from "./InvestorPortfolioCard";
 import type { Investor } from "./InvestorPortfolioTable";
 
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import ReportGeneratorButton from "./tables/ReportGeneratorButton";
-import PPTGeneratorButton  from "./tables/PPTGeneratorButton";
+import PPTGeneratorButton from "./tables/PPTGeneratorButton";
 
 /* NEW imports for shared formatters */
 import { fmtNum } from "@/lib/format";
@@ -87,202 +88,6 @@ type DividendRow = {
 
 type Fund = { fund_id: number; fund_name: string };
 
-// --- add near your other types ---
-type FileRow = {
-  id: number;
-  filename: string;
-  type: "is" | "cn" | "other";
-  class: string;
-  date: string;           // ISO
-  size_bytes?: number;
-};
-
-const MOCK_FILES: FileRow[] = [
-  { id: 1, filename: "Feng_Fan_20220228.pdf", type: "is", class: "Class A - Lead", date: "2022-02-28" },
-  { id: 2, filename: "CN_213602974.pdf",      type: "cn", class: "—",              date: "2025-07-14" },
-  // add more if you want to fill the table…
-];
-
-const USE_MOCK_FILES = true;
-// Keep filename readable but short (preserve extension)
-const FILE_NAME_MAX = 32;
-function middleEllipsis(name: string, max = FILE_NAME_MAX) {
-  if (!name || name.length <= max) return name;
-  const dot = name.lastIndexOf(".");
-  const ext = dot > 0 ? name.slice(dot) : "";
-  const base = dot > 0 ? name.slice(0, dot) : name;
-
-  const keep = Math.max(3, max - ext.length - 1); // 1 for ellipsis
-  const head = Math.ceil(keep * 0.6);
-  const tail = keep - head;
-  return `${base.slice(0, head)}…${base.slice(-tail)}${ext}`;
-}
-
-function FilesTable({
-  rows,
-  loading,
-  title,
-}: {
-  rows: { id:number; filename:string; type:"is"|"cn"|"other"; class:string; date:string; size_bytes?:number }[];
-  loading: boolean;
-  title?: string;
-}) {
-  const typeLabel = (t: "is"|"cn"|"other") =>
-    t === "is" ? "Investor Statement" : t === "cn" ? "Contract Note" : "Other";
-
-  const fmtDate = (s: string) => {
-    const d = new Date(s);
-    return isNaN(d.getTime()) ? s : d.toLocaleDateString("en-CA");
-  };
-
-  // ── inline filters & sort state ──────────────────────────────
-  const [typeFilter, setTypeFilter]   = useState<"all"|"is"|"cn"|"other">("all");
-  const [classFilter, setClassFilter] = useState<string>("all");
-  const [dateSort, setDateSort]       = useState<"desc"|"asc">("desc");
-
-  const dateLabel = dateSort === "desc" ? "Date ↓" : "Date ↑";
-
-  // unique class options from current data
-  const classOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of rows) set.add(r.class || "—");
-    return Array.from(set);
-  }, [rows]);
-
-  // filtered + sorted rows (client-side)
-  const visibleRows = useMemo(() => {
-    const filtered = rows.filter(r => {
-      const mt = typeFilter === "all" || r.type === typeFilter;
-      const mc = classFilter === "all" || (r.class || "—") === classFilter;
-      return mt && mc;
-    });
-    const dir = dateSort === "desc" ? -1 : 1;
-    return filtered.sort(
-      (a, b) => (new Date(a.date).getTime() - new Date(b.date).getTime()) * dir
-    );
-  }, [rows, typeFilter, classFilter, dateSort]);
-
-  // columns add up to 100% (keeps table inside card)
-  const COLS = ["36%", "22%", "20%", "12%", "10%"] as const;
-
-  return (
-    <Card className="mt-4 min-w-0">
-      <CardHeader>
-        <CardTitle className="text-base font-semibold">
-          {title ?? "Files"}
-        </CardTitle>
-      </CardHeader>
-
-      <CardContent className="p-6">
-        <div className="overflow-x-hidden">
-          <Table className="w-full table-fixed border-collapse [&_th]:align-top [&_th]:pt-0.5 [&_th]:pb-2 [&_th]:truncate [&_td]:truncate">
-            <colgroup>
-              {COLS.map((w, i) => <col key={i} style={{ width: w }} />)}
-            </colgroup>
-
-            <TableHeader>
-              <TableRow>
-                {/* File name stays a plain label */}
-                <TableHead className="whitespace-nowrap">File name</TableHead>
-
-                {/* Type header = Select itself */}
-                <TableHead className="align-middle">
-                  <Select value={typeFilter} onValueChange={(v)=>setTypeFilter(v as any)}>
-                    <SelectTrigger className="h-7 w-full text-xs">
-                      <SelectValue placeholder="All types" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-64">
-                      <SelectItem value="all">All types</SelectItem>
-                      <SelectItem value="is">Investor Statement</SelectItem>
-                      <SelectItem value="cn">Contract Note</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableHead>
-
-                {/* Class header = Select itself */}
-                <TableHead className="align-middle">
-                  <Select value={classFilter} onValueChange={setClassFilter}>
-                    <SelectTrigger className="h-7 w-full text-xs">
-                      <SelectValue placeholder="All classes" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-64">
-                      <SelectItem value="all">All classes</SelectItem>
-                      {classOptions.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TableHead>
-
-                {/* Date header = sort button with dynamic label */}
-                <TableHead className="align-middle">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2"
-                    onClick={() => setDateSort(dateSort === "desc" ? "asc" : "desc")}
-                    title={`Sort by date ${dateSort === "desc" ? "ascending" : "descending"}`}
-                  >
-                    {dateLabel}
-                  </Button>
-                </TableHead>
-
-                {/* Download header keeps text so the column is clear */}
-                <TableHead className="text-right whitespace-nowrap pr-1">Download</TableHead>
-              </TableRow>
-            </TableHeader>
-
-
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">Loading…</TableCell>
-                </TableRow>
-              ) : visibleRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">No files</TableCell>
-                </TableRow>
-              ) : (
-                visibleRows.map((r, idx) => (
-                  <TableRow key={r.id ?? idx}>
-                    <TableCell title={r.filename}>
-                      <button
-                        className="block w-full text-left text-primary hover:underline truncate"
-                        onClick={() => { /* TODO: /files/signed-url?disposition=inline */ }}
-                      >
-                        {middleEllipsis(r.filename)}
-                      </button>
-                    </TableCell>
-
-                    <TableCell title={typeLabel(r.type)}>{typeLabel(r.type)}</TableCell>
-                    <TableCell title={r.class || "—"}>{r.class || "—"}</TableCell>
-                    <TableCell title={fmtDate(r.date)}>{fmtDate(r.date)}</TableCell>
-
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 p-0"
-                        onClick={() => { /* TODO: /files/signed-url?disposition=attachment */ }}
-                        aria-label={`Download ${r.filename}`}
-                        title="Download"
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-
 /* --------------------------------------------------------------- */
 export default function InvestorsPage() {
   /* ① fund list + current filter --------------------- */
@@ -311,16 +116,14 @@ export default function InvestorsPage() {
 
   // --- add new state (below your other useState calls) ---
   const [filesInvestor, setFilesInvestor] = useState<string | null>(null);
-  const [filesRows, setFilesRows] = useState<FileRow[]>([]);
-  const [loadingFiles, setLoadingFiles] = useState(false);
-  
+
   /* ----------------------------------------------------------------
      ✦ NEW  handleRowSelect adapter
      Keeps type-safety between InvestorRow → Investor
   ------------------------------------------------------------------ */
   const handleRowSelect = useCallback(
     (row: Investor) => {
-      setFilesInvestor(null);    
+      setFilesInvestor(null);
       let target = row;
       if (!row.investor || row.investor.trim() === "") {
         const idx = rows.findIndex(r => r === row);
@@ -422,7 +225,7 @@ export default function InvestorsPage() {
   * 3c. dividend history – refetch when investor changes
   * ------------------------------------------------------------------ */
   useEffect(() => {
-    if (!selected) { 
+    if (!selected) {
       setDivRows([]);
       return;
     }
@@ -451,38 +254,7 @@ export default function InvestorsPage() {
         setLoadingDivs(false);
       }
     })();
-  }, [selected]);   
-
-  useEffect(() => {
-    if (!filesInvestor || selectedFund == null) { setFilesRows([]); return; }
-    setLoadingFiles(true);
-
-    // Always show mock first
-    setFilesRows(MOCK_FILES);
-
-    // Only try the API if you flip the flag
-    if (!USE_MOCK_FILES) {
-      (async () => {
-        try {
-          const u = new URL(`${API_BASE}/files`);
-          u.searchParams.set("fund_id", String(selectedFund));
-          u.searchParams.set("investor", filesInvestor);
-          u.searchParams.set("page", "1");
-          u.searchParams.set("page_size", "50");
-          const r = await fetch(u, { credentials: "include" });
-          if (r.ok) {
-            const j = await r.json() as { rows?: FileRow[] };
-            if (Array.isArray(j.rows)) setFilesRows(j.rows);
-          }
-        } finally {
-          setLoadingFiles(false);
-        }
-      })();
-    } else {
-      setLoadingFiles(false);
-    }
-  }, [filesInvestor, selectedFund]);
-
+  }, [selected]);
 
   /* ------------------------------------------------------------------ *
    *  UX helpers
@@ -491,7 +263,7 @@ export default function InvestorsPage() {
     setSelectedFund(Number(v));            // 1) switch fund
     setPage(1);                    // 2) reset paging
     setSelected(null);             // 3) close any drawer
-    setFilesInvestor(null);  
+    setFilesInvestor(null);
   };
 
   /* close detail on Esc ------------------------------------------ */
@@ -539,7 +311,7 @@ export default function InvestorsPage() {
         >
           {/* Left = investors table */}
           <ResizablePanel
-            defaultSize={filesInvestor ? 55 : 60} 
+            defaultSize={filesInvestor ? 55 : 60}
             minSize={20}
             maxSize={80}
             className="pr-2 overflow-auto min-w-0"
@@ -565,15 +337,15 @@ export default function InvestorsPage() {
           <ResizablePanel
             defaultSize={filesInvestor ? 45 : 40}              // or keep your {filesInvestor ? 30 : 40}
             minSize={20}
-            maxSize={80}  
+            maxSize={80}
             className="min-w-0 flex flex-col overflow-auto p-6 space-y-4 bg-background shadow-lg relative">
             {/* 🔀 Switch the panel body based on mode */}
             {filesInvestor ? (
               // -------------------- FILES MODE --------------------
               <FilesTable
-                rows={filesRows}
-                loading={loadingFiles}
-                title={`Files — ${filesInvestor}`}
+                investor={filesInvestor}
+                fundId={selectedFund!}
+                apiBase={API_BASE}
               />
             ) : selected ? (
               // -------------------- DETAILS MODE --------------------
@@ -586,194 +358,194 @@ export default function InvestorsPage() {
                   <X className="h-5 w-5" />
                 </button>
 
-            <h2 className="text-xl font-bold">{selected.investor}</h2>
-            {/* holdings table */}
-            <Card>
-              {/* make table area scrollable while header & footer stay fixed */}
-              <CardContent className="p-6">
-                <div className="overflow-x-auto">
-                  <Table className="w-full table-fixed border-collapse [&_th]:truncate">
-                    <colgroup>
-                      {["28%", "8%", "8%", "12%", "12%", "12%", "10%"].map((w, i) => (
-                        <col key={i} style={{ width: w }} />
-                      ))}
-                    </colgroup>
+                <h2 className="text-xl font-bold">{selected.investor}</h2>
+                {/* holdings table */}
+                <Card>
+                  {/* make table area scrollable while header & footer stay fixed */}
+                  <CardContent className="p-6">
+                    <div className="overflow-x-auto">
+                      <Table className="w-full table-fixed border-collapse [&_th]:truncate">
+                        <colgroup>
+                          {["28%", "8%", "8%", "12%", "12%", "12%", "10%"].map((w, i) => (
+                            <col key={i} style={{ width: w }} />
+                          ))}
+                        </colgroup>
 
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>產品名稱</TableHead>
-                        <TableHead className="whitespace-nowrap">認購時間</TableHead>
-                        <TableHead>數據截止</TableHead>
-                        <TableHead className="text-right">認購金額<br />(USD)</TableHead>
-                        <TableHead className="text-right">市值</TableHead>
-                        <TableHead className="text-right">含息後總額</TableHead>
-                        <TableHead className="text-right">估派息後盈虧 (%)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-
-                    <TableBody>
-                      {loadingHoldings ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center">
-                            Loading…
-                          </TableCell>
-                        </TableRow>
-                      ) : holdings.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center">
-                            No data
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        holdings.map((h) => (
-                          <TableRow key={h.name}>
-                            <TableCell className="whitespace-pre-line break-words" title={h.name}>{h.name}</TableCell>
-                            <TableCell className="truncate align-top" title={fmtDateListStr(h.sub_date)}>{fmtDateList(h.sub_date)}</TableCell>
-                            <TableCell className="truncate align-top" title={fmtDateListStr(h.data_cutoff)}>{fmtDateList(h.data_cutoff)}</TableCell>
-                            <TableCell className="truncate text-right align-top" title={fmtNumListStr(h.subscribed)}>{fmtNumList(h.subscribed)}</TableCell>
-                            <TableCell className="truncate text-right align-top" title={fmtNumListStr(h.market_value)}>{fmtNumList(h.market_value)}</TableCell>
-                            <TableCell className="truncate text-right" title={fmtNum(h.total_after_int)}>{fmtNum(h.total_after_int)}</TableCell>
-                            <TableCell
-                              className={`text-right ${h.pnl_pct === "NA"
-                                ? "text-muted-foreground"
-                                : Number(h.pnl_pct) > 0
-                                  ? "text-green-600"
-                                  : "text-destructive"
-                                }`}
-                            >
-                              {h.pnl_pct === "NA"
-                                ? "NA"
-                                : `${Number(h.pnl_pct) > 0 ? "+" : ""}${h.pnl_pct
-                                }%`}
-                            </TableCell>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>產品名稱</TableHead>
+                            <TableHead className="whitespace-nowrap">認購時間</TableHead>
+                            <TableHead>數據截止</TableHead>
+                            <TableHead className="text-right">認購金額<br />(USD)</TableHead>
+                            <TableHead className="text-right">市值</TableHead>
+                            <TableHead className="text-right">含息後總額</TableHead>
+                            <TableHead className="text-right">估派息後盈虧 (%)</TableHead>
                           </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
+                        </TableHeader>
+
+                        <TableBody>
+                          {loadingHoldings ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center">
+                                Loading…
+                              </TableCell>
+                            </TableRow>
+                          ) : holdings.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center">
+                                No data
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            holdings.map((h) => (
+                              <TableRow key={h.name}>
+                                <TableCell className="whitespace-pre-line break-words" title={h.name}>{h.name}</TableCell>
+                                <TableCell className="truncate align-top" title={fmtDateListStr(h.sub_date)}>{fmtDateList(h.sub_date)}</TableCell>
+                                <TableCell className="truncate align-top" title={fmtDateListStr(h.data_cutoff)}>{fmtDateList(h.data_cutoff)}</TableCell>
+                                <TableCell className="truncate text-right align-top" title={fmtNumListStr(h.subscribed)}>{fmtNumList(h.subscribed)}</TableCell>
+                                <TableCell className="truncate text-right align-top" title={fmtNumListStr(h.market_value)}>{fmtNumList(h.market_value)}</TableCell>
+                                <TableCell className="truncate text-right" title={fmtNum(h.total_after_int)}>{fmtNum(h.total_after_int)}</TableCell>
+                                <TableCell
+                                  className={`text-right ${h.pnl_pct === "NA"
+                                    ? "text-muted-foreground"
+                                    : Number(h.pnl_pct) > 0
+                                      ? "text-green-600"
+                                      : "text-destructive"
+                                    }`}
+                                >
+                                  {h.pnl_pct === "NA"
+                                    ? "NA"
+                                    : `${Number(h.pnl_pct) > 0 ? "+" : ""}${h.pnl_pct
+                                    }%`}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* report-PDF button */}
+                <div className="flex flex-wrap gap-4 pt-4 justify-center ">
+                  {/* PDF on the left  ─────────────────────────────────────────── */}
+                  <ReportGeneratorButton key={selected.investor} defaultInvestor={selected.investor ?? ""} fundId={selectedFund ?? undefined} className="flex-1 sm:flex-none mx-auto max-w-[220px]o" />
+                  {/* PPT on the right ─────────────────────────────────────────── */}
+                  <PPTGeneratorButton defaultInvestor={selected.investor ?? ""} fundId={selectedFund ?? undefined} className="flex-1 sm:flex-none mx-auto max-w-[220px]" />
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* report-PDF button */}
-            <div className="flex flex-wrap gap-4 pt-4 justify-center ">
-              {/* PDF on the left  ─────────────────────────────────────────── */}
-              <ReportGeneratorButton key={selected.investor} defaultInvestor={selected.investor ?? ""} fundId={selectedFund ?? undefined} className="flex-1 sm:flex-none mx-auto max-w-[220px]o"/>
-              {/* PPT on the right ─────────────────────────────────────────── */}
-              <PPTGeneratorButton defaultInvestor={selected.investor ?? ""} fundId={selectedFund ?? undefined}  className="flex-1 sm:flex-none mx-auto max-w-[220px]" />
-            </div>
+                {/* ── ❷ Latest-holdings-across-all-funds table ─────────────────── */}
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle>Latest&nbsp;Holdings&nbsp;(per&nbsp;Fund)</CardTitle>
+                  </CardHeader>
 
-            {/* ── ❷ Latest-holdings-across-all-funds table ─────────────────── */}
-            <Card className="mt-4">
-              <CardHeader>
-                <CardTitle>Latest&nbsp;Holdings&nbsp;(per&nbsp;Fund)</CardTitle>
-              </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="overflow-x-auto">
+                      <Table className="w-full table-fixed border-collapse [&_th]:truncate">
+                        <colgroup>
+                          {["48%", "16%", "18%", "18%"].map((w, i) => (
+                            <col key={i} style={{ width: w }} />
+                          ))}
+                        </colgroup>
 
-              <CardContent className="p-6">
-                <div className="overflow-x-auto">
-                  <Table className="w-full table-fixed border-collapse [&_th]:truncate">
-                    <colgroup>
-                      {["48%", "16%", "18%", "18%"].map((w, i) => (
-                        <col key={i} style={{ width: w }} />
-                      ))}
-                    </colgroup>
-
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fund Name</TableHead>
-                        <TableHead className="whitespace-nowrap">
-                          Snapshot&nbsp;Date
-                        </TableHead>
-                        <TableHead className="text-right">Number&nbsp;Held</TableHead>
-                        <TableHead className="text-right">NAV&nbsp;Value</TableHead>
-                      </TableRow>
-                    </TableHeader>
-
-                    <TableBody>
-                      {loadingLatest ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center">
-                            Loading…
-                          </TableCell>
-                        </TableRow>
-                      ) : latestHoldings.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center">
-                            No data
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        latestHoldings.map((h, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="whitespace-pre-line break-words" title={h.fund_name}>{h.fund_name}</TableCell>
-                            <TableCell className="truncate">{new Date(h.snapshot_date).toLocaleDateString("en-CA")}</TableCell>
-                            <TableCell className="truncate text-right font-mono">{h.number_held.toLocaleString()}</TableCell>
-                            <TableCell className="truncate text-right font-mono">{usdStd(h.nav_value)}</TableCell>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Fund Name</TableHead>
+                            <TableHead className="whitespace-nowrap">
+                              Snapshot&nbsp;Date
+                            </TableHead>
+                            <TableHead className="text-right">Number&nbsp;Held</TableHead>
+                            <TableHead className="text-right">NAV&nbsp;Value</TableHead>
                           </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
+                        </TableHeader>
 
-            {/* ── ❸ Dividend-history table ─────────────────────────────── */}
-            <Card className="mt-4">
-              <CardHeader>
-                <CardTitle>Dividend&nbsp;History</CardTitle>
-              </CardHeader>
+                        <TableBody>
+                          {loadingLatest ? (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center">
+                                Loading…
+                              </TableCell>
+                            </TableRow>
+                          ) : latestHoldings.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center">
+                                No data
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            latestHoldings.map((h, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell className="whitespace-pre-line break-words" title={h.fund_name}>{h.fund_name}</TableCell>
+                                <TableCell className="truncate">{new Date(h.snapshot_date).toLocaleDateString("en-CA")}</TableCell>
+                                <TableCell className="truncate text-right font-mono">{h.number_held.toLocaleString()}</TableCell>
+                                <TableCell className="truncate text-right font-mono">{usdStd(h.nav_value)}</TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              <CardContent className="p-6">
-                <div className="overflow-x-auto">
-                  <Table className="w-full table-fixed border-collapse [&_th]:truncate">
-                    <colgroup>
-                      {["60%", "20%", "20%"].map((w, i) => (
-                        <col key={i} style={{ width: w }} />
-                      ))}
-                    </colgroup>
+                {/* ── ❸ Dividend-history table ─────────────────────────────── */}
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle>Dividend&nbsp;History</CardTitle>
+                  </CardHeader>
 
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fund&nbsp;Name</TableHead>
-                        <TableHead className="whitespace-nowrap">Paid&nbsp;Date</TableHead>
-                        <TableHead className="text-right">Amount&nbsp;(USD)</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                  <CardContent className="p-6">
+                    <div className="overflow-x-auto">
+                      <Table className="w-full table-fixed border-collapse [&_th]:truncate">
+                        <colgroup>
+                          {["60%", "20%", "20%"].map((w, i) => (
+                            <col key={i} style={{ width: w }} />
+                          ))}
+                        </colgroup>
 
-                    <TableBody>
-                      {loadingDivs ? (
-                        <TableRow>
-                          <TableCell colSpan={3} className="text-center">
-                            Loading…
-                          </TableCell>
-                        </TableRow>
-                      ) : divRows.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={3} className="text-center">
-                            No&nbsp;data
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        divRows.map((d, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="whitespace-pre-line break-words" title={d.fund_category}>
-                              {d.fund_category}
-                            </TableCell>
-                            <TableCell className="truncate">
-                              {new Date(d.paid_date).toLocaleDateString("en-CA")}
-                            </TableCell>
-                            <TableCell className="truncate text-right font-mono text-green-700">
-                              {usdStd(+d.amount)}
-                            </TableCell>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Fund&nbsp;Name</TableHead>
+                            <TableHead className="whitespace-nowrap">Paid&nbsp;Date</TableHead>
+                            <TableHead className="text-right">Amount&nbsp;(USD)</TableHead>
                           </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
+                        </TableHeader>
+
+                        <TableBody>
+                          {loadingDivs ? (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-center">
+                                Loading…
+                              </TableCell>
+                            </TableRow>
+                          ) : divRows.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-center">
+                                No&nbsp;data
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            divRows.map((d, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell className="whitespace-pre-line break-words" title={d.fund_category}>
+                                  {d.fund_category}
+                                </TableCell>
+                                <TableCell className="truncate">
+                                  {new Date(d.paid_date).toLocaleDateString("en-CA")}
+                                </TableCell>
+                                <TableCell className="truncate text-right font-mono text-green-700">
+                                  {usdStd(+d.amount)}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
               </>
             ) : (
               /* EMPTY STATE */

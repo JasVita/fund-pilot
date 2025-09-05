@@ -117,29 +117,27 @@ export default function InvestorPortfolioTable({
       },
       // -------- Documents column (no field; use colId + renderer) --------
       {
-        headerName: 'Documents',
-        colId: 'documents',
+        headerName: "Documents",
+        colId: "documents",           // no field; this is a synthetic column
         flex: 1,
         sortable: false,
         filter: false,
         cellRenderer: (p: ICellRendererParams<Investor>) => {
           const row = p.data;
+          const handle = (e: any) => {
+            e?.preventDefault?.();
+            e?.stopPropagation?.();   // <-- critical: block row click
+            if (row && onOpenFiles) onOpenFiles(row);
+          };
           return (
             <Badge
               variant="secondary"
               role="button"
               tabIndex={0}
-              className="cursor-pointer rounded-full"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (row && onOpenFiles) onOpenFiles(row);
-              }}
+              className="cursor-pointer rounded-full select-none"
+              onClick={handle}
               onKeyDown={(e) => {
-                if ((e.key === "Enter" || e.key === " ") && row && onOpenFiles) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onOpenFiles(row);
-                }
+                if (e.key === "Enter" || e.key === " ") handle(e);
               }}
             >
               Details
@@ -195,14 +193,19 @@ export default function InvestorPortfolioTable({
         defaultColDef={{ resizable: true, sortable: true }}
         domLayout="autoHeight"
         animateRows
-        /* pagination */
         pagination
         paginationPageSize={PAGE_SIZE}
         onPaginationChanged={handlePaginationChanged}
-        /* events */
         onGridReady={onGridReady}
-        onRowClicked={(e: RowClickedEvent<Investor>) => {
-          if (e.data) onSelectRow(e.data);
+
+        /* 👇 single click handler */
+        onCellClicked={(e) => {
+          // if user clicked the "Documents" cell, do NOT trigger Details selection
+          if (e.colDef?.colId === "documents") {
+            e.event?.stopPropagation?.();     // extra safety
+            return;
+          }
+          if (e.data) onSelectRow(e.data);    // any other cell → Details mode
         }}
       />
     </div>
