@@ -10,10 +10,12 @@ import type {
   CellClassParams,
   ValueFormatterParams,
   ICellRendererParams,
+  ValueGetterParams, 
   RowClickedEvent,
   GridReadyEvent,
   GridApi,
 } from 'ag-grid-community';
+import { Badge } from "@/components/ui/badge";
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { fmtThousands } from '@/lib/format';
 
@@ -38,6 +40,7 @@ type Props = {
   quickFilter: string;          // 🔍 text typed by the user
   onPageChange: (n: number) => void;
   onSelectRow: (r: Investor) => void;
+  onOpenFiles?: (r: Investor) => void; 
 };
 
 const PAGE_SIZE = 20;
@@ -50,6 +53,7 @@ export default function InvestorPortfolioTable({
   quickFilter,
   onPageChange,
   onSelectRow,
+  onOpenFiles,
 }: Props) {
   const gridApiRef = useRef<GridApi<Investor> | null>(null);
 
@@ -111,29 +115,52 @@ export default function InvestorPortfolioTable({
         valueGetter: p => p.data?.status ?? '',
         cellRenderer: (p: ICellRendererParams<Investor>) => p.value ?? '',
       },
+      // -------- Documents column (no field; use colId + renderer) --------
+      {
+        headerName: "Documents",
+        colId: "documents",           // no field; this is a synthetic column
+        flex: 1,
+        sortable: false,
+        filter: false,
+        cellRenderer: (p: ICellRendererParams<Investor>) => {
+          const row = p.data;
+          const handle = (e: any) => {
+            e?.preventDefault?.();
+            e?.stopPropagation?.();   // <-- critical: block row click
+            if (row && onOpenFiles) onOpenFiles(row);
+          };
+          return (
+            <Badge
+              variant="secondary"
+              role="button"
+              tabIndex={0}
+              className="cursor-pointer rounded-full select-none"
+              onClick={handle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") handle(e);
+              }}
+            >
+              Details
+            </Badge>
+          );
+        },
+      },
     ],
-    [],
+    [onOpenFiles],
   );
 
   /* ----- grid ready -------------------------------------------- */
   const onGridReady = (e: GridReadyEvent<Investor>) => {
     gridApiRef.current = e.api;
     e.api.paginationGoToPage(page - 1);
-    if (loading) e.api.showLoadingOverlay();
     applyQuickFilter(e.api, quickFilter);
+    e.api.setGridOption?.("loading", loading);
   };
 
   /* ----- keep quick-filter in sync ----------------------------- */
   useEffect(() => {
     applyQuickFilter(gridApiRef.current, quickFilter);
   }, [quickFilter]);
-
-  /* ----- reflect loading overlay ------------------------------- */
-  useEffect(() => {
-    const api = gridApiRef.current;
-    if (!api) return;
-    loading ? api.showLoadingOverlay() : api.hideOverlay();
-  }, [loading]);
 
   /* ----- parent ⇄ grid page sync ------------------------------- */
   useEffect(() => {
@@ -159,14 +186,20 @@ export default function InvestorPortfolioTable({
         defaultColDef={{ resizable: true, sortable: true }}
         domLayout="autoHeight"
         animateRows
-        /* pagination */
         pagination
         paginationPageSize={PAGE_SIZE}
         onPaginationChanged={handlePaginationChanged}
-        /* events */
         onGridReady={onGridReady}
-        onRowClicked={(e: RowClickedEvent<Investor>) => {
-          if (e.data) onSelectRow(e.data);
+        loading={loading}
+
+        /* 👇 single click handler */
+        onCellClicked={(e) => {
+          // if user clicked the "Documents" cell, do NOT trigger Details selection
+          if (e.colDef?.colId === "documents") {
+            e.event?.stopPropagation?.();     // extra safety
+            return;
+          }
+          if (e.data) onSelectRow(e.data);    // any other cell → Details mode
         }}
       />
     </div>
