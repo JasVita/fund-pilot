@@ -153,21 +153,14 @@ export default function InvestorPortfolioTable({
   const onGridReady = (e: GridReadyEvent<Investor>) => {
     gridApiRef.current = e.api;
     e.api.paginationGoToPage(page - 1);
-    if (loading) e.api.showLoadingOverlay();
     applyQuickFilter(e.api, quickFilter);
+    e.api.setGridOption?.("loading", loading);
   };
 
   /* ----- keep quick-filter in sync ----------------------------- */
   useEffect(() => {
     applyQuickFilter(gridApiRef.current, quickFilter);
   }, [quickFilter]);
-
-  /* ----- reflect loading overlay ------------------------------- */
-  useEffect(() => {
-    const api = gridApiRef.current;
-    if (!api) return;
-    loading ? api.showLoadingOverlay() : api.hideOverlay();
-  }, [loading]);
 
   /* ----- parent ⇄ grid page sync ------------------------------- */
   useEffect(() => {
@@ -197,6 +190,7 @@ export default function InvestorPortfolioTable({
         paginationPageSize={PAGE_SIZE}
         onPaginationChanged={handlePaginationChanged}
         onGridReady={onGridReady}
+        loading={loading}
 
         /* 👇 single click handler */
         onCellClicked={(e) => {

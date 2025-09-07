@@ -91,7 +91,7 @@ export default function LoginPage() {
       <div className="flex flex-col justify-center px-10">
 
         <div className="flex justify-center mb-6">
-          <Image src="/fund-pilot-logo-black.png" alt="Fund Pilot Logo" width={150} height={150} className="object-contain" />
+          <Image src="/fund-pilot-logo-black.png" alt="Fund Pilot Logo" width={150} height={150} priority className="object-contain" />
         </div>
         {/* Email Login Form */}
         <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-sm mx-auto">

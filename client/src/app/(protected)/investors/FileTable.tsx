@@ -28,59 +28,59 @@ const fmtDate = (s: string) => {
 };
 
 /* loose name normalizer: lowercase + strip non-alphanum */
-const norm = (s: string) =>
-  (s || "")
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "");
+// const norm = (s: string) =>
+//   (s || "")
+//     .toLowerCase()
+//     .normalize("NFKD")
+//     .replace(/[\u0300-\u036f]/g, "")
+//     .replace(/[^a-z0-9]/g, "");
 
 /* ---------- MOCK (from fund_files) ---------- */
-const MOCK_FILES: FileRow[] = [
-  {
-    id: 1,
-    investor_name: "Feng Fan",
-    as_of: "2022-02-28",
-    type: "is",
-    class: "class a - lead series",
-    fund_id: 2,
-    url: "https://prod-fundpilot.s3.us-east-1.amazonaws.com/62d68849c591450d88b94d2dc4becc5b_Feng_Fan_20220228.pdf",
-  },
-  {
-    id: 2,
-    investor_name: "Xiang Youjin",
-    as_of: "2022-02-28",
-    type: "is",
-    class: "class a - lead series",
-    fund_id: 2,
-    url: "https://prod-fundpilot.s3.us-east-1.amazonaws.com/70d5ab9d12004ad4bc8525ba51c759dc_Xiang_Youjin_20220228.pdf",
-  },
-  {
-    id: 3,
-    investor_name: "He Guangming",
-    as_of: "2022-02-28",
-    type: "is",
-    class: "class a - lead series",
-    fund_id: 2,
-    url: "https://prod-fundpilot.s3.us-east-1.amazonaws.com/ccea62f9e69a4eb7bd4fbd330c1477b8_He_Guangming_20220228.pdf",
-  },
-  {
-    id: 4,
-    investor_name: "CN_213602974",         // example CN row for demo
-    as_of: "2025-07-14",
-    type: "cn",
-    class: "—",
-    fund_id: 7,
-    url: "https://example.com/CN_213602974.pdf",
-  },
-];
+// const MOCK_FILES: FileRow[] = [
+//   {
+//     id: 1,
+//     investor_name: "Feng Fan",
+//     as_of: "2022-02-28",
+//     type: "is",
+//     class: "class a - lead series",
+//     fund_id: 2,
+//     url: "https://prod-fundpilot.s3.us-east-1.amazonaws.com/62d68849c591450d88b94d2dc4becc5b_Feng_Fan_20220228.pdf",
+//   },
+//   {
+//     id: 2,
+//     investor_name: "Xiang Youjin",
+//     as_of: "2022-02-28",
+//     type: "is",
+//     class: "class a - lead series",
+//     fund_id: 2,
+//     url: "https://prod-fundpilot.s3.us-east-1.amazonaws.com/70d5ab9d12004ad4bc8525ba51c759dc_Xiang_Youjin_20220228.pdf",
+//   },
+//   {
+//     id: 3,
+//     investor_name: "He Guangming",
+//     as_of: "2022-02-28",
+//     type: "is",
+//     class: "class a - lead series",
+//     fund_id: 2,
+//     url: "https://prod-fundpilot.s3.us-east-1.amazonaws.com/ccea62f9e69a4eb7bd4fbd330c1477b8_He_Guangming_20220228.pdf",
+//   },
+//   {
+//     id: 4,
+//     investor_name: "CN_213602974",         // example CN row for demo
+//     as_of: "2025-07-14",
+//     type: "cn",
+//     class: "—",
+//     fund_id: 7,
+//     url: "https://example.com/CN_213602974.pdf",
+//   },
+// ];
 
 /* ---------- props ---------- */
 type Props = {
   investor: string;             // e.g. "Kai Zeng"
   fundId: number;               // current fund id
   apiBase?: string;             // default uses window origin
-  useMock?: boolean;            // true => read from MOCK_FILES
+//   useMock?: boolean;            // true => read from MOCK_FILES
   title?: string;               // optional card title
 };
 
@@ -88,7 +88,7 @@ export default function FileTable({
   investor,
   fundId,
   apiBase,
-  useMock = true,
+//   useMock = true,
   title,
 }: Props) {
   /* ---------- fetch rows ---------- */
@@ -98,78 +98,41 @@ export default function FileTable({
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!investor || !fundId) { setRows([]); return; }
-      setLoading(true);
-
-      if (useMock) {
-        const invKey = norm(investor);
-
-        // try fund + investor
-        let filtered = MOCK_FILES.filter(
-            r => r.fund_id === fundId && norm(r.investor_name).includes(invKey)
-        );
-
-        // fallback: investor only
-        if (!filtered.length) filtered = MOCK_FILES.filter(
-            r => norm(r.investor_name).includes(invKey)
-        );
-
-        // fallback: fund only
-        if (!filtered.length) filtered = MOCK_FILES.filter(r => r.fund_id === fundId);
-
-        // last resort: show all mock rows
-        if (!filtered.length) filtered = MOCK_FILES;
-
-        if (!mounted) return;
-        setRows(filtered);
-        setLoading(false);
-        return;
-        }
-
-      try {
+        if (!investor || !fundId) { setRows([]); return; }
+        setLoading(true);
+        try {
         const base = (apiBase?.trim() || window.location.origin).replace(/\/$/, "");
-        const u = new URL(`${base}/files`);
+        const u = new URL(`${base}/investors/files`);
         u.searchParams.set("fund_id", String(fundId));
         u.searchParams.set("investor", investor);
-        u.searchParams.set("page", "1");
-        u.searchParams.set("page_size", "50");
+        u.searchParams.set("limit", "100");
+        u.searchParams.set("sort", "desc");
 
         const r = await fetch(u.toString(), { credentials: "include" });
         if (!mounted) return;
-        if (r.ok) {
-          // Expect: { rows: [{ investor_name, as_of, type, class, fund_id, url, id? }] }
-          const j = await r.json() as { rows?: Partial<FileRow>[] };
-          const mapped: FileRow[] = (j.rows ?? []).map((x, i) => ({
-            id: (x.id as number) ?? i + 1,
+        if (!r.ok) { setRows([]); setLoading(false); return; }
+
+        const j = await r.json() as { rows?: Partial<FileRow>[] };
+        const mapped: FileRow[] = (j.rows ?? []).map((x, i) => ({
+            id:         (x.id as number) ?? i + 1,
             investor_name: (x.investor_name as string) ?? investor,
-            as_of: (x.as_of as string) ?? "",
-            type: (x.type as FileRow["type"]) ?? "other",
-            class: (x.class as string) ?? "—",
-            fund_id: (x.fund_id as number) ?? fundId,
-            url: (x.url as string) ?? "#",
-          }));
-          const invKey = norm(investor);
-          let filtered = mapped.filter(
-          r => r.fund_id === fundId && norm(r.investor_name).includes(invKey)
-          );
-          if (!filtered.length) filtered = mapped.filter(
-          r => norm(r.investor_name).includes(invKey)
-          );
-          if (!filtered.length) filtered = mapped.filter(r => r.fund_id === fundId);
-          setRows(filtered.length ? filtered : mapped);
-        } else {
-          setRows([]);
-        }
-      } catch {
+            as_of:      (x.as_of as string) ?? "",
+            type:       (x.type as FileRow["type"]) ?? "other",
+            class:      (x.class as string) ?? "—",
+            fund_id:    (x.fund_id as number) ?? fundId,
+            url:        (x.url as string) ?? "#",
+        }));
+        setRows(mapped);
+        } catch {
         if (!mounted) return;
         setRows([]);
-      } finally {
+        } finally {
         if (mounted) setLoading(false);
-      }
+        }
     })();
-
     return () => { mounted = false; };
-  }, [investor, fundId, apiBase, useMock]);
+    }, [investor, fundId, apiBase]);
+
 
   /* ---------- filters & sort (in headers) ---------- */
   const [typeFilter, setTypeFilter]   = useState<"all"|"is"|"cn"|"other">("all");

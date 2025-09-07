@@ -206,6 +206,48 @@ exports.investorReport = async (req, res) => {
   }
 };
 
+/**
+ * GET /investors/files?fund_id=2&investor=Feng%20Fan&limit=50&offset=0&sort=desc
+ * curl -H "Cookie: fp_jwt=$JWT"   "http://localhost:5103/investors/files?fund_id=2&investor=Feng%20Fan"
+ * Returns rows from fund_files: id, investor_name, as_of, type, class, fund_id, url
+ * - fund_id is required
+ * - investor is required (we do loose/similarity matching; fallback to fund-only if no match)
+ */
+exports.listInvestorFiles = async (req, res) => {
+  const fundId = req.query.fund_id ? Number(req.query.fund_id) : null;
+  const investorRaw = (req.query.investor || "").trim();
+  const limit  = Math.min(Number(req.query.limit || 100), 500);
+  const offset = Math.max(Number(req.query.offset || 0), 0);
+  const sort   = String(req.query.sort || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
+
+  if (!fundId)      return res.status(400).json({ error: "fund_id is required" });
+  if (!investorRaw) return res.status(400).json({ error: "investor is required" });
+
+  try {
+    // STRICT (case-insensitive) match on investor name, same fund_id.
+    // We normalize by trimming and lowercasing on both sides; no LIKE, no trgm.
+    const sql = `
+      WITH p AS (
+        SELECT $1::int  AS fund_id,
+               btrim($2::text) AS investor_norm
+      )
+      SELECT f.id, f.investor_name, f.as_of, f.type, f.class, f.fund_id, f.url
+        FROM fund_files f, p
+       WHERE f.fund_id = p.fund_id
+         AND lower(btrim(f.investor_name)) = lower(p.investor_norm)
+       ORDER BY f.as_of ${sort}, f.id ${sort}
+       LIMIT $3 OFFSET $4;
+    `;
+    const { rows } = await pool.query(sql, [fundId, investorRaw, limit, offset]);
+    res.json({ fund_id: fundId, investor: investorRaw, count: rows.length, rows });
+  } catch (err) {
+    console.error("listInvestorFiles:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+
+
 /* unchanged: listInvestors() */
 exports.listInvestors = async (req, res) => {
   const cid = req.auth.role === "super"
