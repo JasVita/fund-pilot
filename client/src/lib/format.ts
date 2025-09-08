@@ -62,3 +62,46 @@ export const fmtThousands = (v: unknown, maximumFractionDigits = 2): string => {
       })
     : "—";
 };
+
+/** Format a date-like string to YYYY-MM-DD (en-CA). */
+export const fmtDateYMD = (s: string): string => {
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString("en-CA");
+};
+
+/** Ask the server to format the investor display name (uses your /investors/format-name route). */
+export const formatInvestorDisplay = async (
+  apiBase: string | undefined,
+  rawName: string,
+  opts?: { initials?: boolean }
+): Promise<string> => {
+  const base = (apiBase?.trim() || window.location.origin).replace(/\/$/, "");
+  const u = new URL(`${base}/investors/format-name`);
+  u.searchParams.set("name", rawName);
+  try {
+    const res = await fetch(u.toString(), { credentials: "include" });
+    const txt = res.ok ? (await res.text()).trim() : rawName;
+    const formatted = txt || rawName;
+    if (opts?.initials) {
+      // Take first letter of each alphabetical token, uppercase; e.g. "Sun Hong Yu" -> "SHY"
+      const parts = formatted.match(/[A-Za-z]+/g) || [];
+      const abbr = parts.map(w => w[0]?.toUpperCase() ?? "").join("");
+      return abbr || "FILES";
+    }
+    return formatted;
+  } catch {
+    if (opts?.initials) {
+      const parts = String(rawName).match(/[A-Za-z]+/g) || [];
+      const abbr = parts.map(w => w[0]?.toUpperCase() ?? "").join("");
+      return abbr || "FILES";
+    }
+    return rawName;
+  }
+};
+
+/** Today in YYYY-MM-DD. */
+export const todayStr = (): string => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};

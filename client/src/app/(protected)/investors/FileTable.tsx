@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
+import { fetchJson, fmtDateYMD, todayStr, formatInvestorDisplay } from "@/lib/format";
 /* ---------- types (match fund_files) ---------- */
 export type FileRow = {
   id: number;
@@ -19,81 +19,32 @@ export type FileRow = {
 };
 
 /* ---------- helpers ---------- */
-const typeText = (t: FileRow["type"]) =>
-  t === "is" ? "Investor Statement" : t === "cn" ? "Contract Note" : "Other";
-
-const fmtDate = (s: string) => {
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? s : d.toLocaleDateString("en-CA");
-};
-
-/* loose name normalizer: lowercase + strip non-alphanum */
-// const norm = (s: string) =>
-//   (s || "")
-//     .toLowerCase()
-//     .normalize("NFKD")
-//     .replace(/[\u0300-\u036f]/g, "")
-//     .replace(/[^a-z0-9]/g, "");
-
-/* ---------- MOCK (from fund_files) ---------- */
-// const MOCK_FILES: FileRow[] = [
-//   {
-//     id: 1,
-//     investor_name: "Feng Fan",
-//     as_of: "2022-02-28",
-//     type: "is",
-//     class: "class a - lead series",
-//     fund_id: 2,
-//     url: "https://prod-fundpilot.s3.us-east-1.amazonaws.com/62d68849c591450d88b94d2dc4becc5b_Feng_Fan_20220228.pdf",
-//   },
-//   {
-//     id: 2,
-//     investor_name: "Xiang Youjin",
-//     as_of: "2022-02-28",
-//     type: "is",
-//     class: "class a - lead series",
-//     fund_id: 2,
-//     url: "https://prod-fundpilot.s3.us-east-1.amazonaws.com/70d5ab9d12004ad4bc8525ba51c759dc_Xiang_Youjin_20220228.pdf",
-//   },
-//   {
-//     id: 3,
-//     investor_name: "He Guangming",
-//     as_of: "2022-02-28",
-//     type: "is",
-//     class: "class a - lead series",
-//     fund_id: 2,
-//     url: "https://prod-fundpilot.s3.us-east-1.amazonaws.com/ccea62f9e69a4eb7bd4fbd330c1477b8_He_Guangming_20220228.pdf",
-//   },
-//   {
-//     id: 4,
-//     investor_name: "CN_213602974",         // example CN row for demo
-//     as_of: "2025-07-14",
-//     type: "cn",
-//     class: "—",
-//     fund_id: 7,
-//     url: "https://example.com/CN_213602974.pdf",
-//   },
-// ];
+const typeText = (t: FileRow["type"]) => t === "is" ? "Investor Statement" : t === "cn" ? "Contract Note" : "Other";
 
 /* ---------- props ---------- */
 type Props = {
   investor: string;             // e.g. "Kai Zeng"
   fundId: number;               // current fund id
   apiBase?: string;             // default uses window origin
-//   useMock?: boolean;            // true => read from MOCK_FILES
   title?: string;               // optional card title
 };
 
-export default function FileTable({
-  investor,
-  fundId,
-  apiBase,
-//   useMock = true,
-  title,
-}: Props) {
+export default function FileTable({ investor, fundId, apiBase, title }: Props) {
   /* ---------- fetch rows ---------- */
   const [rows, setRows] = useState<FileRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [prettyInvestor, setPrettyInvestor] = useState(investor);
+  const [zipping, setZipping] = useState(false);
+
+  // fetch AI-formatted investor name via the server helper
+  useEffect(() => {
+    let aborted = false;
+      (async () => {
+        const formatted = await formatInvestorDisplay(apiBase, investor);
+        if (!aborted) setPrettyInvestor(formatted || investor);
+      })();
+      return () => { aborted = true; };
+  }, [investor, apiBase]);
 
   useEffect(() => {
     let mounted = true;
@@ -108,11 +59,8 @@ export default function FileTable({
         u.searchParams.set("limit", "100");
         u.searchParams.set("sort", "desc");
 
-        const r = await fetch(u.toString(), { credentials: "include" });
+        const j = await fetchJson<{ rows?: Partial<FileRow>[] }>(u.toString());
         if (!mounted) return;
-        if (!r.ok) { setRows([]); setLoading(false); return; }
-
-        const j = await r.json() as { rows?: Partial<FileRow>[] };
         const mapped: FileRow[] = (j.rows ?? []).map((x, i) => ({
             id:         (x.id as number) ?? i + 1,
             investor_name: (x.investor_name as string) ?? investor,
@@ -132,7 +80,6 @@ export default function FileTable({
     })();
     return () => { mounted = false; };
     }, [investor, fundId, apiBase]);
-
 
   /* ---------- filters & sort (in headers) ---------- */
   const [typeFilter, setTypeFilter]   = useState<"all"|"is"|"cn"|"other">("all");
@@ -164,12 +111,58 @@ export default function FileTable({
   /* ---------- layout: Type | Class | Date | Download ---------- */
   const COLS = ["30%", "30%", "20%", "20%"] as const; // sums to 100%
 
+  const handleZipDownload = async () => {
+    setZipping(true);
+    const base = (apiBase?.trim() || window.location.origin).replace(/\/$/, "");
+    const u = new URL(`${base}/investors/files/zip`);
+    u.searchParams.set("fund_id", String(fundId));
+    u.searchParams.set("investor", investor);
+    u.searchParams.set("sort", dateSort); // keep same ordering as table
+    const aiInitials = await formatInvestorDisplay(apiBase, investor, { initials: true }); // Get AI-formatted initials (e.g. "Deng Jie" -> "DJ")
+
+    try {
+      const res = await fetch(u.toString(), { credentials: "include" });
+      if (!res.ok) {
+        console.error("ZIP fetch failed:", res.status, res.statusText);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${aiInitials}_${todayStr()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setZipping(false);
+    }
+  };
+
   return (
     <Card className="mt-4 min-w-0">
-      <CardHeader>
+      <CardHeader className="flex items-center justify-between">
         <CardTitle className="text-base font-semibold">
-          {title ?? `Files — ${investor}`}
+          {title ?? `Files — ${prettyInvestor}`}
         </CardTitle>
+        <Button
+          variant="default"                 // match your default dark theme
+          size="sm"
+          className="h-9 px-3 gap-2"
+          onClick={handleZipDownload}
+          title="Download all files as a ZIP"
+          disabled={zipping}
+          aria-live="polite"
+          aria-busy={zipping}
+        >
+          {zipping ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          <span>{zipping ? "Compressing…" : "Download all (ZIP)"}</span>
+        </Button>
       </CardHeader>
 
       <CardContent className="p-6">
@@ -243,7 +236,7 @@ export default function FileTable({
                   <TableRow key={r.id}>
                     <TableCell title={typeText(r.type)}>{typeText(r.type)}</TableCell>
                     <TableCell title={r.class || "—"}>{r.class || "—"}</TableCell>
-                    <TableCell title={fmtDate(r.as_of)}>{fmtDate(r.as_of)}</TableCell>
+                    <TableCell title={fmtDateYMD(r.as_of)}>{fmtDateYMD(r.as_of)}</TableCell>
 
                     <TableCell className="text-right">
                       <Button
