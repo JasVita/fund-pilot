@@ -89,9 +89,9 @@ exports.investorHoldings = async (req, res) => {
 exports.formatInvestorName = async (req, res) => {
   const raw = (req.query.name || "").trim();
   if (!raw) return res.status(400).json({ error: "?name= is required" });
-
   try {
     const formatted = await formatName(raw);
+    // console.log("formatInvestorName:", formatted);
     res.send(formatted);
   } catch (err) {
     console.error("formatInvestorName:", err);
@@ -246,7 +246,169 @@ exports.listInvestorFiles = async (req, res) => {
   }
 };
 
+const archiver = require("archiver");
+const { Readable } = require("stream");
 
+/**
+ * GET /investors/files/zip?fund_id=2&investor=Feng%20Fan&ids=1,2,3
+ * Streams a zip named "<investor>_YYYY-MM-DD.zip".
+ * File names inside zip: "<type>_<class>_<YYYYMMDD><ext>"
+ * - fund_id (required)
+ * - investor (required, strict case-insensitive equality in DB)
+ * - ids (optional, comma-separated list of fund_files.id to restrict)
+ * - curl -H "Cookie: fp_jwt=$JWT" \
+     -L -o "Feng_Fan_$(date +%F).zip" \
+     "http://localhost:5103/investors/files/zip?fund_id=2&investor=Feng%20Fan&sort=desc"
+ */
+exports.zipInvestorFiles = async (req, res) => {
+  const fundId = req.query.fund_id ? Number(req.query.fund_id) : null;
+  const investorRaw = (req.query.investor || "").trim();
+  const sort   = String(req.query.sort || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
+  const idsCsv = (req.query.ids || "").trim();
+
+  if (!fundId)      return res.status(400).json({ error: "fund_id is required" });
+  if (!investorRaw) return res.status(400).json({ error: "investor is required" });
+
+  // sanitize & parse ids (optional)
+  let ids = null;
+  if (idsCsv) {
+    ids = idsCsv
+      .split(",")
+      .map(s => Number(s.trim()))
+      .filter(n => Number.isFinite(n) && n > 0);
+    if (!ids.length) ids = null;
+  }
+
+  // filename helpers
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm   = String(today.getMonth() + 1).padStart(2, "0");
+  const dd   = String(today.getDate()).padStart(2, "0");
+
+  const initials = (s) => {
+  const parts = String(s || "").split(/[^A-Za-z]+/).filter(Boolean);
+  const abbr = parts.map(w => w[0].toUpperCase()).join("");
+  return abbr || "FILES";
+  };
+  const zipFileName = `${initials(investorRaw)}_${yyyy}-${mm}-${dd}.zip`;
+
+  try {
+    // 1) fetch the rows we want to zip (strict investor match, same fund)
+    //    and optional restriction by ids
+    const params = [fundId, investorRaw];
+    let whereIds = "";
+    if (ids && ids.length) {
+      whereIds = ` AND f.id = ANY($3::int[]) `;
+      params.push(ids);
+    }
+
+    const sql = `
+      WITH p AS (
+        SELECT $1::int AS fund_id, btrim($2::text) AS investor_norm
+      )
+      SELECT f.id, f.investor_name, f.as_of, f.type, f.class, f.fund_id, f.url
+        FROM fund_files f, p
+       WHERE f.fund_id = p.fund_id
+         AND lower(btrim(f.investor_name)) = lower(p.investor_norm)
+       ${whereIds}
+       ORDER BY f.as_of ${sort}, f.id ${sort};
+    `;
+
+    const { rows } = await pool.query(sql, params);
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "No files found for that investor/fund" });
+    }
+
+    // 2) set zip headers
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${zipFileName}"`
+    );
+
+    // helps some proxies/browsers to show download UI ASAP
+    res.setHeader("Transfer-Encoding", "chunked");
+    if (typeof res.flushHeaders === "function") {
+      try { res.flushHeaders(); } catch {}
+    }
+
+    // 3) create the zip stream
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (err) => {
+      console.error("zip error:", err);
+      if (!res.headersSent) res.status(500);
+      res.end();
+    });
+    archive.pipe(res);
+
+    // 4) generate unique names & append each URL as a zipped entry
+    const seen = new Map(); // name => count
+
+    const pad = (n) => String(n).padStart(2, "0");
+    const fmtAsOf = (s) => {
+      const d = new Date(s);
+      if (Number.isNaN(d.getTime())) return "00000000";
+      return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+    };
+
+    const slug = (s) =>
+      (s || "")
+        .toLowerCase()
+        .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "na";
+    const clean = (s) => slug(s);
+
+    // Process with small concurrency to reduce total time
+    const CONCURRENCY = 4;
+    let index = 0;
+    async function worker() {
+      while (index < rows.length) {
+        const r = rows[index++];
+        // compute entry name
+        const extFromUrl = (() => {
+          try {
+            const u = new URL(r.url);
+            const m = u.pathname.match(/\.([a-z0-9]+)$/i);
+            return m ? `.${m[1].toLowerCase()}` : ".pdf";
+          } catch { return ".pdf"; }
+        })();
+        const typeMap = { is: "investor-statement", cn: "contract-note", other: "other" };
+        const shortType  = typeMap[String(r.type || "").toLowerCase()] || slug(r.type);
+        const shortClass = slug(r.class);
+        const dayStr     = fmtAsOf(r.as_of);
+        let baseName = `${shortType}_${shortClass}_${dayStr}${extFromUrl}`;
+        if (seen.has(baseName)) {
+          const n = seen.get(baseName) + 1;
+          seen.set(baseName, n);
+          const dot = baseName.lastIndexOf(".");
+          baseName = `${baseName.slice(0, dot)}_${n}${baseName.slice(dot)}`;
+        } else {
+          seen.set(baseName, 1);
+        }
+        try {
+          const resp = await fetch(r.url);
+          if (!resp.ok || !resp.body) {
+            console.warn("skip url (bad response):", r.url, resp.status);
+            continue;
+          }
+          const nodeStream = Readable.fromWeb(resp.body);
+          archive.append(nodeStream, { name: baseName });
+        } catch (e) {
+          console.warn("skip url (fetch error):", r.url, e?.message);
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+    // finalize after all entries queued
+    archive.finalize();
+
+  } catch (err) {
+    console.error("zipInvestorFiles:", err);
+    if (!res.headersSent) res.status(500).json({ error: "Internal Server Error" });
+  }
+};
 
 /* unchanged: listInvestors() */
 exports.listInvestors = async (req, res) => {
