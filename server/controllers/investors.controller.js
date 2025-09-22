@@ -174,8 +174,33 @@ exports.investorReport = async (req, res) => {
     /*   Instead of reading from a `funds` table we iterate over a   *
      *   fixed list of fund_id-s (1,2,3,4) and call the PL/pgSQL     *
      *   helper for each.  We discard the fund_id in the SELECT.     */
+    // const sql = `
+    //   SELECT
+    //       r.name,
+    //       r.sub_date,
+    //       r.data_cutoff,
+    //       r.subscribed,
+    //       r.market_value,
+    //       r.total_after_int,
+    //       r.pnl_pct
+    //     FROM  unnest(ARRAY[1,2,3,4]) AS f(fund_id)
+    //     CROSS JOIN LATERAL investor_subscription_report(f.fund_id, $1::text) AS r
+    //     WHERE  COALESCE(r.sub_date,
+    //                     r.data_cutoff,
+    //                     r.subscribed,
+    //                     r.market_value) IS NOT NULL
+    //     ORDER  BY f.fund_id,
+    //               r.sub_date; 
+    // `;
     const sql = `
+      WITH fund_ids AS (
+        SELECT DISTINCT fund_id
+        FROM   public.fundlist          -- or public.v_fund_lookup
+        WHERE  fund_id IS NOT NULL
+        ORDER  BY fund_id
+      )
       SELECT
+          f.fund_id,                    -- helpful for debugging
           r.name,
           r.sub_date,
           r.data_cutoff,
@@ -183,14 +208,10 @@ exports.investorReport = async (req, res) => {
           r.market_value,
           r.total_after_int,
           r.pnl_pct
-        FROM  unnest(ARRAY[1,2,3,4]) AS f(fund_id)
-        CROSS JOIN LATERAL investor_subscription_report(f.fund_id, $1::text) AS r
-        WHERE  COALESCE(r.sub_date,
-                        r.data_cutoff,
-                        r.subscribed,
-                        r.market_value) IS NOT NULL
-        ORDER  BY f.fund_id,
-                  r.sub_date; 
+      FROM  fund_ids f
+      CROSS JOIN LATERAL investor_subscription_report(f.fund_id, $1::text) AS r
+      WHERE COALESCE(r.sub_date, r.data_cutoff, r.subscribed, r.market_value) IS NOT NULL
+      ORDER BY f.fund_id, r.sub_date;
     `;
 
     const { rows } = await pool.query(sql, [investor]);
