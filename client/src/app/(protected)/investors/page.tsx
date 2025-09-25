@@ -1,3 +1,4 @@
+// /home/jas/Documents/fund-pilot/client/src/app/(protected)/investors/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -17,49 +18,15 @@ import ReportGeneratorButton from "./tables/ReportGeneratorButton";
 import PPTGeneratorButton from "./tables/PPTGeneratorButton";
 
 /* NEW imports for shared formatters */
-import { fmtNum } from "@/lib/format";
-import { fmtDateListStr, fmtNumListStr } from "@/lib/report-format";
-
+import { fmtNum, usdStd, fmtDateList } from "@/lib/format";
+import {
+  fmtDateListStr,
+  renderNumLinesWithBadges,
+  fmtNumListStrKeepTags,
+  renderDateLinesWithBadges,
+} from "@/lib/report-format";
 /* ---- helpers ----------------------------------------------------- */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
-
-const splitLines = (s?: string | null) => (s ?? "").split("\n");
-
-const parseLooseNumber = (raw: string) => {
-  const num = parseFloat(
-    raw.replace(/,/g, "").replace(/\.$/, "")   // kill commas + lone dot
-  );
-  return Number.isFinite(num) ? num : null;
-};
-
-const fmtNumList = (s: string | null | undefined) =>
-  splitLines(s).map((token, i, arr) => {
-    const n = parseLooseNumber(token);
-    return n !== null ? (
-      <span key={i}>{fmtNum(n)}{i !== arr.length - 1 && <br />}</span>
-    ) : (
-      <span key={i}>{token.replace(/\.$/, "")}{i !== arr.length - 1 && <br />}</span>
-    );
-  });
-
-const fmtDateList = (s: string | null | undefined) =>
-  splitLines(s).map((d, i, arr) => {
-    const dt = new Date(d);
-    const str = !isNaN(dt.getTime())
-      ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`
-      : d;
-    return (
-      <span key={i}>{str}{i !== arr.length - 1 && <br />}</span>
-    );
-  });
-
-/* simple USD fmt so it matches your style */
-const usdStd = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(v);
 
 /* ---- types ------------------------------------------------------- */
 
@@ -87,6 +54,22 @@ type DividendRow = {
 };
 
 type Fund = { fund_id: number; fund_name: string };
+
+/** Render dates (YYYY-MM) on separate lines using <br /> */
+const renderDateLines = (s: string | null | undefined): React.ReactNode => {
+  const parts = fmtDateList(s); // array of strings from format.ts
+  return (
+    <>
+      {parts.map((str, i) => (
+        <span key={i}>
+          {str}
+          {i !== parts.length - 1 && <br />}
+        </span>
+      ))}
+    </>
+  );
+};
+
 
 /* --------------------------------------------------------------- */
 export default function InvestorsPage() {
@@ -366,18 +349,19 @@ export default function InvestorsPage() {
                     <div className="overflow-x-auto">
                       <Table className="w-full table-fixed border-collapse [&_th]:truncate">
                         <colgroup>
-                          {["28%", "8%", "8%", "12%", "12%", "12%", "10%"].map((w, i) => (
+                          {["28%", "10%", "10%", "12%", "12%", "12%", "10%"].map((w, i) => (
                             <col key={i} style={{ width: w }} />
                           ))}
                         </colgroup>
+
 
                         <TableHeader>
                           <TableRow>
                             <TableHead>產品名稱</TableHead>
                             <TableHead className="whitespace-nowrap">認購時間</TableHead>
                             <TableHead>數據截止</TableHead>
-                            <TableHead className="text-right">認購金額<br />(USD)</TableHead>
-                            <TableHead className="text-right">市值</TableHead>
+                            <TableHead className="text-left">認購金額<br />(USD)</TableHead>
+                            <TableHead className="text-left">市值</TableHead>
                             <TableHead className="text-right">含息後總額</TableHead>
                             <TableHead className="text-right">估派息後盈虧 (%)</TableHead>
                           </TableRow>
@@ -400,10 +384,15 @@ export default function InvestorsPage() {
                             holdings.map((h) => (
                               <TableRow key={h.name}>
                                 <TableCell className="whitespace-pre-line break-words" title={h.name}>{h.name}</TableCell>
-                                <TableCell className="truncate align-top" title={fmtDateListStr(h.sub_date)}>{fmtDateList(h.sub_date)}</TableCell>
-                                <TableCell className="truncate align-top" title={fmtDateListStr(h.data_cutoff)}>{fmtDateList(h.data_cutoff)}</TableCell>
-                                <TableCell className="truncate text-right align-top" title={fmtNumListStr(h.subscribed)}>{fmtNumList(h.subscribed)}</TableCell>
-                                <TableCell className="truncate text-right align-top" title={fmtNumListStr(h.market_value)}>{fmtNumList(h.market_value)}</TableCell>
+                                <TableCell className="truncate align-top" title={fmtDateListStr(h.sub_date)}>{renderDateLines(h.sub_date)}</TableCell>
+                                <TableCell className="truncate align-top text-left" title={fmtDateListStr(h.data_cutoff)}>{renderDateLinesWithBadges(h.data_cutoff)}</TableCell>
+
+                                {/* Subscribed: formatted numbers + preserved [TAG] */}
+                                <TableCell className="truncate text-left align-top" title={fmtNumListStrKeepTags(h.subscribed)} >{renderNumLinesWithBadges(h.subscribed)}</TableCell>
+
+                                {/* Market Value: formatted numbers + preserved [TAG] */}
+                                <TableCell className="truncate text-left align-top" title={fmtNumListStrKeepTags(h.market_value)} >{renderNumLinesWithBadges(h.market_value)}</TableCell>
+
                                 <TableCell className="truncate text-right" title={fmtNum(h.total_after_int)}>{fmtNum(h.total_after_int)}</TableCell>
                                 <TableCell
                                   className={`text-right ${h.pnl_pct === "NA"
