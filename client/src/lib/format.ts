@@ -105,3 +105,21 @@ export const todayStr = (): string => {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
+
+/** Split a possibly multi-line string into lines (keeps order, trims each) */
+export const splitLines = (s?: string | null): string[] =>
+  String(s ?? "")
+    .split("\n")
+    .map(x => x.trim())
+    .filter(Boolean);
+
+/** Format each line to YYYY-MM if it’s a valid date; otherwise keep original.
+ *  Returns an array of strings (no JSX) so callers decide how to render.
+ */
+export const fmtDateList = (s: string | null | undefined): string[] =>
+  splitLines(s).map((d) => {
+    const dt = new Date(d);
+    return !Number.isNaN(dt.getTime())
+      ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`
+      : d;
+  });

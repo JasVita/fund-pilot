@@ -256,7 +256,7 @@ export async function generateInvestmentPpt(data: ReportData) {
 
     // single call – pptxgenjs paginates, we overlay afterwards
     // addPaginatedTable(pptx, allRows, logoTable);
-    addPaginatedTable(allRows, logoTable, [2.4, 0.8, 0.8, 1.2, 1.2, 1.2, 1.3]);
+    addPaginatedTable(allRows, logoTable, [2.4, 0.8, 1.2, 1.2, 1.0, 1.2, 1.3]);
   }
 
   /* 5‑B. dividend‑history table (grouped + merged cells) -------- */
