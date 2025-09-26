@@ -4,12 +4,12 @@ const requireRole = require("../middlewares/requireRole");
 // const { requireCompanyBody } = require("../middlewares/requireCompany");
 const requireAdmin = require("../middlewares/requireAdmin");
 const requireSuper  = require("../middlewares/requireSuper");
-const { unsettledRedemption, netCash, navVsDiv, aumHistory, dealingCalendar, getDividendYields, upsertDividendYields } = require("../controllers/dashboard.controller");
+const { unsettledRedemption, fundLevel, netCash, navVsDiv, aumHistory, dealingCalendar, getDividendYields, upsertDividendYields } = require("../controllers/dashboard.controller");
 
 const router = express.Router();
 
 router.get("/dashboard/unsettled-redemption", requireAuth, requireRole, unsettledRedemption);
-// now accepts  ?email=nick@turoid.ai   (parameter is required)
+router.get("/dashboard/fund-level", requireAuth, requireRole, fundLevel);
 router.get("/dashboard/net-cash", requireAuth, requireRole, netCash);
 router.get("/dashboard/nav-value-totals-vs-div", requireAuth, requireRole, navVsDiv);
 router.get("/dashboard/aum",                   requireAuth, requireRole, aumHistory);

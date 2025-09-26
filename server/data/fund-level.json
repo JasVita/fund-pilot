@@ -1,0 +1,525 @@
+{
+    "as_of_batch": "2025-06-30",
+    "funds": [
+        {
+            "fund_id": 2,
+            "fund_name": "Annum 全球PE基金第一期",
+            "as_of": "2025-06-30",
+            "base_currency": "USD",
+            "source": "fund_level",
+            "classes": [
+                {
+                    "class_name": "Class A - Lead Series",
+                    "series": [
+                        {
+                            "year": 2024,
+                            "months": [
+                                {
+                                    "date": "2024-12",
+                                    "nav": 1606.49,
+                                    "return_pct": -0.0105
+                                }
+                            ],
+                            "ytd_pct": 0.0103
+                        },
+                        {
+                            "year": 2025,
+                            "months": [
+                                {
+                                    "date": "2025-01",
+                                    "nav": 1602.67,
+                                    "return_pct": -0.0024
+                                },
+                                {
+                                    "date": "2025-02",
+                                    "nav": 1609.0,
+                                    "return_pct": 0.0039
+                                },
+                                {
+                                    "date": "2025-03",
+                                    "nav": 1630.44,
+                                    "return_pct": 0.0133
+                                },
+                                {
+                                    "date": "2025-04",
+                                    "nav": 1657.9,
+                                    "return_pct": 0.0168
+                                },
+                                {
+                                    "date": "2025-05",
+                                    "nav": 1660.19,
+                                    "return_pct": 0.0014
+                                },
+                                {
+                                    "date": "2025-06",
+                                    "nav": 1686.55,
+                                    "return_pct": 0.0159
+                                }
+                            ],
+                            "ytd_pct": 0.0498
+                        }
+                    ]
+                },
+                {
+                    "class_name": "Class B - Lead Series",
+                    "series": [
+                        {
+                            "year": 2024,
+                            "months": [
+                                {
+                                    "date": "2024-12",
+                                    "nav": 1638.41,
+                                    "return_pct": -0.0101
+                                }
+                            ],
+                            "ytd_pct": 0.0154
+                        },
+                        {
+                            "year": 2025,
+                            "months": [
+                                {
+                                    "date": "2025-01",
+                                    "nav": 1635.2,
+                                    "return_pct": -0.002
+                                },
+                                {
+                                    "date": "2025-02",
+                                    "nav": 1642.34,
+                                    "return_pct": 0.0044
+                                },
+                                {
+                                    "date": "2025-03",
+                                    "nav": 1664.92,
+                                    "return_pct": 0.0137
+                                },
+                                {
+                                    "date": "2025-04",
+                                    "nav": 1693.67,
+                                    "return_pct": 0.0173
+                                },
+                                {
+                                    "date": "2025-05",
+                                    "nav": 1696.71,
+                                    "return_pct": 0.0018
+                                },
+                                {
+                                    "date": "2025-06",
+                                    "nav": 1724.37,
+                                    "return_pct": 0.0163
+                                }
+                            ],
+                            "ytd_pct": 0.0525
+                        }
+                    ]
+                },
+                {
+                    "class_name": "Class C - Lead Series",
+                    "series": [
+                        {
+                            "year": 2024,
+                            "months": [
+                                {
+                                    "date": "2024-12",
+                                    "nav": 1300.87,
+                                    "return_pct": -0.0099
+                                }
+                            ],
+                            "ytd_pct": 0.0174
+                        },
+                        {
+                            "year": 2025,
+                            "months": [
+                                {
+                                    "date": "2025-01",
+                                    "nav": 1298.54,
+                                    "return_pct": -0.0018
+                                },
+                                {
+                                    "date": "2025-02",
+                                    "nav": 1304.43,
+                                    "return_pct": 0.0045
+                                },
+                                {
+                                    "date": "2025-03",
+                                    "nav": 1322.58,
+                                    "return_pct": 0.0139
+                                },
+                                {
+                                    "date": "2025-04",
+                                    "nav": 1345.65,
+                                    "return_pct": 0.0174
+                                },
+                                {
+                                    "date": "2025-05",
+                                    "nav": 1348.29,
+                                    "return_pct": 0.002
+                                },
+                                {
+                                    "date": "2025-06",
+                                    "nav": 1370.49,
+                                    "return_pct": 0.0165
+                                }
+                            ],
+                            "ytd_pct": 0.0535
+                        }
+                    ]
+                },
+                {
+                    "class_name": "Class VP - Lead Series",
+                    "series": [
+                        {
+                            "year": 2024,
+                            "months": [
+                                {
+                                    "date": "2024-12",
+                                    "nav": 1217.39,
+                                    "return_pct": -0.0097
+                                }
+                            ],
+                            "ytd_pct": 0.0205
+                        },
+                        {
+                            "year": 2025,
+                            "months": [
+                                {
+                                    "date": "2025-01",
+                                    "nav": 1215.51,
+                                    "return_pct": -0.0015
+                                },
+                                {
+                                    "date": "2025-02",
+                                    "nav": 1221.33,
+                                    "return_pct": 0.0048
+                                },
+                                {
+                                    "date": "2025-03",
+                                    "nav": 1238.64,
+                                    "return_pct": 0.0142
+                                },
+                                {
+                                    "date": "2025-04",
+                                    "nav": 1260.55,
+                                    "return_pct": 0.0177
+                                },
+                                {
+                                    "date": "2025-05",
+                                    "nav": 1263.34,
+                                    "return_pct": 0.0022
+                                },
+                                {
+                                    "date": "2025-06",
+                                    "nav": 1284.47,
+                                    "return_pct": 0.0167
+                                }
+                            ],
+                            "ytd_pct": 0.0551
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "fund_id": 4,
+            "fund_name": "Annum 全球大趨勢基金",
+            "as_of": "2025-06-30",
+            "base_currency": "USD",
+            "source": "fund_level",
+            "classes": [
+                {
+                    "class_name": "Class VP - Series 1121",
+                    "series": [
+                        {
+                            "year": 2024,
+                            "months": [
+                                {
+                                    "date": "2024-12",
+                                    "nav": 676.68,
+                                    "return_pct": 0.0048
+                                }
+                            ],
+                            "ytd_pct": 0.0036
+                        }
+                    ],
+                    "notes": "Cells appear blank/0 in the PDF"
+                },
+                {
+                    "class_name": "Class A - Series 2",
+                    "series": [
+                        {
+                            "year": 2024,
+                            "months": [
+                                {
+                                    "date": "2024-12",
+                                    "nav": 820.46,
+                                    "return_pct": 0.0043
+                                }
+                            ],
+                            "ytd_pct": -0.0014
+                        },
+                        {
+                            "year": 2025,
+                            "months": [
+                                {
+                                    "date": "2025-01",
+                                    "nav": 825.55,
+                                    "return_pct": 0.0062
+                                },
+                                {
+                                    "date": "2025-02",
+                                    "nav": 828.85,
+                                    "return_pct": 0.004
+                                },
+                                {
+                                    "date": "2025-03",
+                                    "nav": 823.51,
+                                    "return_pct": -0.0064
+                                },
+                                {
+                                    "date": "2025-04",
+                                    "nav": 825.1,
+                                    "return_pct": 0.0019
+                                },
+                                {
+                                    "date": "2025-05",
+                                    "nav": 837.56,
+                                    "return_pct": 0.0151
+                                },
+                                {
+                                    "date": "2025-06",
+                                    "nav": 849.85,
+                                    "return_pct": 0.0147
+                                }
+                            ],
+                            "ytd_pct": 0.0358
+                        }
+                    ]
+                },
+                {
+                    "class_name": "Class PP - Lead Series",
+                    "series": [
+                        {
+                            "year": 2024,
+                            "months": [
+                                {
+                                    "date": "2024-12",
+                                    "nav": 1000.0,
+                                    "return_pct": 0.0
+                                }
+                            ],
+                            "ytd_pct": 0.0
+                        },
+                        {
+                            "year": 2025,
+                            "months": [
+                                {
+                                    "date": "2025-01",
+                                    "nav": 1000.0,
+                                    "return_pct": 0.0
+                                },
+                                {
+                                    "date": "2025-02",
+                                    "nav": 1000.0,
+                                    "return_pct": 0.0
+                                },
+                                {
+                                    "date": "2025-03",
+                                    "nav": 1000.0,
+                                    "return_pct": 0.0
+                                },
+                                {
+                                    "date": "2025-04",
+                                    "nav": 1000.0,
+                                    "return_pct": 0.0
+                                },
+                                {
+                                    "date": "2025-05",
+                                    "nav": 1000.0,
+                                    "return_pct": 0.0
+                                },
+                                {
+                                    "date": "2025-06",
+                                    "nav": 1000.0,
+                                    "return_pct": 0.0
+                                }
+                            ],
+                            "ytd_pct": 0.0
+                        }
+                    ],
+                    "notes": "All zeros per table"
+                },
+                {
+                    "class_name": "Class JP - Lead Series",
+                    "series": [
+                        {
+                            "year": 2024,
+                            "months": [
+                                {
+                                    "date": "2024-12",
+                                    "nav": null,
+                                    "return_pct": null
+                                }
+                            ],
+                            "ytd_pct": null
+                        },
+                        {
+                            "year": 2025,
+                            "months": [
+                                {
+                                    "date": "2025-01",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-02",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-03",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-04",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-05",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-06",
+                                    "nav": null,
+                                    "return_pct": null
+                                }
+                            ],
+                            "ytd_pct": null
+                        }
+                    ],
+                    "notes": "Empty (greyed out) in table"
+                }
+            ]
+        },
+        {
+            "fund_id": 8,
+            "fund_name": "Annum Asia New Dividend income fund",
+            "as_of": "2025-05-30",
+            "base_currency": "USD",
+            "source": "class_fundlevel_table",
+            "classes": [
+                {
+                    "class_name": "Class VP - Lead Series",
+                    "series": [
+                        {
+                            "year": 2025,
+                            "months": [
+                                {
+                                    "date": "2025-01",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-02",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-03",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-04",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-05",
+                                    "nav": null,
+                                    "return_pct": null
+                                }
+                            ],
+                            "ytd_pct": null
+                        }
+                    ],
+                    "notes": "No values in table (dashes)."
+                },
+                {
+                    "class_name": "Class A-01",
+                    "series": [
+                        {
+                            "year": 2025,
+                            "months": [
+                                {
+                                    "date": "2025-01",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-02",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-03",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-04",
+                                    "nav": null,
+                                    "return_pct": null
+                                },
+                                {
+                                    "date": "2025-05",
+                                    "nav": null,
+                                    "return_pct": null
+                                }
+                            ],
+                            "ytd_pct": null
+                        }
+                    ],
+                    "notes": "No values in table (dashes)."
+                },
+                {
+                    "class_name": "Class A-07",
+                    "series": [
+                        {
+                            "year": 2025,
+                            "months": [
+                                {
+                                    "date": "2025-01",
+                                    "nav": 713.49,
+                                    "return_pct": -0.0198
+                                },
+                                {
+                                    "date": "2025-02",
+                                    "nav": 767.91,
+                                    "return_pct": 0.0763
+                                },
+                                {
+                                    "date": "2025-03",
+                                    "nav": 738.2,
+                                    "return_pct": -0.0387
+                                },
+                                {
+                                    "date": "2025-04",
+                                    "nav": 704.58,
+                                    "return_pct": -0.0455
+                                },
+                                {
+                                    "date": "2025-05",
+                                    "nav": 714.12,
+                                    "return_pct": 0.0135
+                                }
+                            ],
+                            "ytd_pct": -0.019
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
