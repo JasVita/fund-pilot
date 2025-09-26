@@ -25,6 +25,104 @@ exports.unsettledRedemption = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────────────────
+// TEMP: fund-level JSON passthrough until DB schema is ready
+// GET /dashboard/fund-level
+// GET /dashboard/fund-level?fund=Annum%20Global%20PE%20Fund%20I%20SP&as_of=2025-06-30
+// GET /dashboard/fund-level?fund=...&class_name=Class%20A%20-%20Lead%20Series
+// GET /dashboard/fund-level?flat=true   (returns flattened rows for chart binding)
+// Env override: FUND_LEVEL_JSON=<path-to-file>
+// ────────────────────────────────────────────────────────────
+const path = require("path");
+const fsp  = require("fs").promises;
+
+// Prefer server/data/fund-level.json, fallback to client/public/data/fund-level.json
+const CANDIDATE_PATHS = [
+  path.resolve(__dirname, "..", "data", "fund-level.json"),               // <-- your current file
+  path.resolve(__dirname, "../..", "client", "public", "data", "fund-level.json"),
+];
+
+let _fundLevelCache = { mtimeMs: 0, data: null, path: null };
+
+async function resolveExistingPath() {
+  for (const p of CANDIDATE_PATHS) {
+    try {
+      await fsp.access(p);
+      return p;
+    } catch (_) {}
+  }
+  throw new Error(
+    `fund-level.json not found. Tried:\n - ${CANDIDATE_PATHS.join("\n - ")}`
+  );
+}
+
+async function loadFundLevelJSON() {
+  const resolved = await resolveExistingPath();
+  const stat = await fsp.stat(resolved);
+  if (!_fundLevelCache.data || stat.mtimeMs !== _fundLevelCache.mtimeMs || _fundLevelCache.path !== resolved) {
+    const raw = await fsp.readFile(resolved, "utf8");
+    _fundLevelCache = { mtimeMs: stat.mtimeMs, data: JSON.parse(raw), path: resolved };
+    console.log("[fund-level] loaded", resolved);
+  }
+  return _fundLevelCache.data;
+}
+
+/** Flatten to rows: one per (fund, class, month) */
+function flattenFundJSON(payload) {
+  const rows = [];
+  for (const f of payload.funds || []) {
+    for (const c of (f.classes || [])) {
+      for (const s of (c.series || [])) {
+        for (const m of (s.months || [])) {
+          rows.push({
+            as_of_batch: payload.as_of_batch ?? null,
+            fund_name: f.fund_name,
+            as_of: f.as_of ?? null,
+            base_currency: f.base_currency ?? null,
+            class_name: c.class_name,
+            year: s.year,
+            date: m.date,            // "YYYY-MM"
+            nav: m.nav === null || m.nav === undefined ? null : Number(m.nav),
+            return_pct: m.return_pct === null || m.return_pct === undefined ? null : Number(m.return_pct),
+            class_ytd_pct: s.ytd_pct === null || s.ytd_pct === undefined ? null : Number(s.ytd_pct),
+          });
+        }
+      }
+    }
+  }
+  return rows;
+}
+
+exports.fundLevel = async (req, res) => {
+  try {
+    const data = await loadFundLevelJSON();
+    const { fund, as_of, class_name, flat } = req.query;
+
+    // Filter funds
+    let funds = data.funds || [];
+    if (fund) funds = funds.filter((f) => f.fund_name === fund);
+    if (as_of) funds = funds.filter((f) => (f.as_of || "") === as_of);
+
+    // Filter classes if requested
+    if (class_name) {
+      funds = funds.map((f) => ({
+        ...f,
+        classes: (f.classes || []).filter((c) => c.class_name === class_name),
+      }));
+    }
+
+    const out = { as_of_batch: data.as_of_batch ?? null, funds };
+
+    if (String(flat).toLowerCase() === "true") {
+      return res.json(flattenFundJSON(out));
+    }
+    return res.json(out);
+  } catch (err) {
+    console.error("fundLevel:", err);
+    return res.status(500).json({ error: "failed_to_load_fund_level_json", detail: err.message });
+  }
+};
+
 /*  GET  /dashboard/net-cash
   *  curl -H "Cookie: fp_jwt=$JWT" "http://localhost:5103/dashboard/net-cash?acct=233569-20010&fund_id=1"
   *  Params:

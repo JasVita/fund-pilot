@@ -123,3 +123,36 @@ export const fmtDateList = (s: string | null | undefined): string[] =>
       ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`
       : d;
   });
+
+/** Compact USD (e.g., 12.3M) */
+export const usdCompact = (v: number) => usd(v, true);
+
+/** USD axis tick label: compact, 0-dp (for charts) */
+export const usdAxisTick = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    notation: "standard", // <-- forces no K/M
+  }).format(v);
+
+/** Percentage label like "12.3%", or "—" if not finite */
+export const pctLabel = (v: number | null | undefined, digits = 1) =>
+  Number.isFinite(Number(v)) ? `${Number(v).toFixed(digits)}%` : "—";
+
+// ── Date helpers (month label <-> ISO) ────────────────────────────
+/** "June 2025" -> "2025-06" */
+export const uiMonthToIso = (label: string) => {
+  const [name, year] = label.split(" ");
+  const m = new Date(`${name} 1, ${year}`).getMonth() + 1; // 0-based
+  return `${year}-${String(m).padStart(2, "0")}`;
+};
+
+/** "2025-01-31" (or any date-like) -> "January 2025" */
+export const monthYearLabel = (input: string | Date) => {
+  const d = new Date(input);
+  return Number.isNaN(d.getTime())
+    ? String(input)
+    : d.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+};

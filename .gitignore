@@ -3,6 +3,7 @@
 .next
 # env / secrets
 .env*
+*test*
 # macOS / editor cruft
 .DS_Store
 .vscode
