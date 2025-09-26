@@ -179,3 +179,30 @@ export const renderDateLinesWithBadges = (
     </>
   );
 };
+
+/** Multi-line money with trailing [TAG] preserved; each line -> "1,234.56 [贖回]" */
+export const fmtMoneyWithTagLines = (s: string | null | undefined): string =>
+  splitLines(s).map(token => {
+    const { value, tag } = parseNumberAndTag(token);
+    const main =
+      value === null
+        ? token.replace(/\.$/, "") // keep original if not numeric
+        : new Intl.NumberFormat("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }).format(value);
+    return tag ? `${main} [${tag}]` : main;
+  }).join("\n");
+
+/** Multi-line YYYY-MM with trailing [TAG] preserved; e.g. "2025-04 [贖回]" */
+export const fmtYYYYMMWithTagLines = (s: string | null | undefined): string =>
+  splitLines(s).map(token => {
+    const m = token.match(/\s*\[([^\]]+)\]\s*$/);
+    const tag = m ? m[1].trim() : null;
+    const raw = m ? token.slice(0, m.index).trim() : token.trim();
+    const d = new Date(raw);
+    const core = !Number.isNaN(d.getTime())
+      ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+      : raw;
+    return tag ? `${core} [${tag}]` : core;
+  }).join("\n");

@@ -4,7 +4,7 @@
 // ------------------------------------------------------------
 
 import PptxGenJS from "pptxgenjs";
-import { fmtYYYYMM, fmtMoney, to2dp } from "@/lib/report-format";
+import { fmtYYYYMM, fmtMoney, to2dp, fmtMoneyWithTagLines } from "@/lib/report-format";
 declare module "pptxgenjs" {
   interface TableOptions {
     autoPageSlideCallback?: (slide: PptxGenJS.Slide, idx: number) => void;
@@ -219,8 +219,8 @@ export async function generateInvestmentPpt(data: ReportData) {
         r.productName ?? "",
         fmtYYYYMM(r.subscriptionTime),
         fmtYYYYMM(r.dataDeadline),
-        fmtMoney(r.subscriptionAmount),
-        fmtMoney(r.marketValue),
+        fmtMoneyWithTagLines(r.subscriptionAmount),
+        fmtMoneyWithTagLines(r.marketValue),
         fmtMoney(to2dp(r.totalAfterDeduction)),
         profitCell(r.estimatedProfit),
       ]);
@@ -256,7 +256,7 @@ export async function generateInvestmentPpt(data: ReportData) {
 
     // single call – pptxgenjs paginates, we overlay afterwards
     // addPaginatedTable(pptx, allRows, logoTable);
-    addPaginatedTable(allRows, logoTable, [2.4, 0.8, 1.2, 1.2, 1.0, 1.2, 1.3]);
+    addPaginatedTable(allRows, logoTable, [2.4, 0.8, 1.2, 1.1, 1.3, 1.1, 1.2]);
   }
 
   /* 5‑B. dividend‑history table (grouped + merged cells) -------- */
