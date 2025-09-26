@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { toStr, fmtYYYYMM, fmtMoney, fmtMoneyLines, to2dp, initials } from "@/lib/report-format";
+import { toStr, fmtYYYYMM, fmtMoney, fmtMoneyLines, to2dp, initials, fmtMoneyWithTagLines, fmtYYYYMMWithTagLines } from "@/lib/report-format";
 
 /* ---------- types ------------------------------------------------ */
 interface ReportData {
@@ -251,9 +251,9 @@ export async function generateInvestmentReport(data: ReportData) {
     const cols = [
       split(r.productName),
       split(r.subscriptionTime).map(fmtYYYYMM),
-      split(r.dataDeadline).map(fmtYYYYMM),
-      split(fmtMoneyLines(r.subscriptionAmount)),
-      split(fmtMoneyLines(r.marketValue)),
+      split(fmtYYYYMMWithTagLines(r.dataDeadline)),        // date + [贖回]
+      split(fmtMoneyWithTagLines(r.subscriptionAmount)),   // money + [tag]
+      split(fmtMoneyWithTagLines(r.marketValue)),          // money + [tag]
       split(
         fmtMoneyLines(
           r.totalAfterDeduction.split("\n").map(to2dp).join("\n")
@@ -305,8 +305,8 @@ export async function generateInvestmentReport(data: ReportData) {
           row.productName,
           row.subscriptionTime,
           row.dataDeadline,
-          fmtMoneyLines(row.subscriptionAmount),
-          fmtMoneyLines(row.marketValue),
+          fmtMoneyWithTagLines(row.subscriptionAmount),
+          fmtMoneyWithTagLines(row.marketValue),
           fmtMoneyLines(
             row.totalAfterDeduction.split("\n").map(to2dp).join("\n")
           ),
