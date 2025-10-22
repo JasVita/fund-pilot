@@ -4,18 +4,23 @@
 // ------------------------------------------------------------
 
 import PptxGenJS from "pptxgenjs";
-import { fmtYYYYMM, fmtMoney, to2dp, fmtMoneyWithTagLines } from "@/lib/report-format";
+import {
+  fmtYYYYMM,
+  fmtMoney,
+  to2dp,
+  fmtMoneyWithTagLines,
+  fmtYYYYMMWithTagLines,   // ← NEW: mirror PDF tag rendering for [贖回]
+} from "@/lib/report-format";
+
 declare module "pptxgenjs" {
   interface TableOptions {
     autoPageSlideCallback?: (slide: PptxGenJS.Slide, idx: number) => void;
     autoPageSlideMaster?: string;
   }
-
   interface Presentation {
     slides: PptxGenJS.Slide[];
   }
 }
-
 
 /* ---------- data models ------------------------------------ */
 interface TableRowData {
@@ -28,7 +33,7 @@ interface TableRowData {
   estimatedProfit:      string;
 }
 
-/* NEW: dividend‑history row */
+/* NEW: dividend-history row */
 export interface DividendRow {
   fund_category: string;
   paid_date:     string;
@@ -40,10 +45,10 @@ interface ReportData {
   reportDate:               string;          // YYYY-MM-DD
   tableData:                TableRowData[];
   dividendRows?:            DividendRow[];
-  totalSubscriptionAmount:  string;
-  totalMarketValue:         string;
-  totalAfterDeduction:      string;
-  totalProfit:              string;
+  totalSubscriptionAmount:  string;          // (optional/unused now that we compute)
+  totalMarketValue:         string;          // (optional/unused now that we compute)
+  totalAfterDeduction:      string;          // (optional/unused now that we compute)
+  totalProfit:              string;          // (optional/unused now that we compute)
 }
 
 /* ---------- helper type for table cells -------------------- */
@@ -51,7 +56,7 @@ type CellOpts = {
   color?: string;
   bold?: boolean;
   align?: "left" | "center" | "right";
-  fill?: string;             // ← NEW: background-fill colour
+  fill?: string;
 };
 
 type StyledCell = {
@@ -59,15 +64,15 @@ type StyledCell = {
   options?: CellOpts;
 };
 
-function profitCell(raw: string | undefined): StyledCell {
-  const pct = (raw ?? "").trim();
-  const num = parseFloat(pct.replace(/[+,％%]/g, ""));   // strip sign/% then cast
-
-  /* every cell is red; keep bold only for positive values */
-  return {
-    text: pct === "" ? "" : (num > 0 ? `+${pct}%` : `${pct}%`),
-    options: { color: "C00000", bold: Number.isFinite(num) && num > 0 }
-  };
+/* Robust % cell (no double %; adds + for positive) */
+function profitCell(raw: string | number | undefined): StyledCell {
+  const s0 = String(raw ?? "").trim();
+  if (!s0) return { text: "" };
+  const m = s0.replace(/[％%]/g, "");              // drop any % first
+  const num = parseFloat(m.replace(/[+,]/g, ""));
+  if (!Number.isFinite(num)) return { text: s0 };  // fallback
+  const out = `${num > 0 ? "+" : ""}${num.toFixed(2)}%`;
+  return { text: out, options: { color: "C00000", bold: num > 0 } };
 }
 
 /* ---------- cached fetch → base-64 helpers ----------------- */
@@ -95,23 +100,59 @@ function decorateTableSlide(slide: PptxGenJS.Slide, logoData: string) {
   slide.addText("存續報告僅供內部參考使用投資人實際數字以月結單為准", { x:0.4, y:4.95, w:"50%", h:0.35, fontFace:"DengXian", fontSize:7 });
 }
 
-
 /* ---------- static assets ---------------------------------- */
-const getCoverImg       = () => fetchAsDataURL("/cover-bg.png",            "cover");
-const getLogoCoverImg   = () => fetchAsDataURL("/logo-white-cover.png",    "logoCover");
-const getLogoTableBlack = () => fetchAsDataURL("/logo-black-table.png",    "logoTable");
+const getCoverImg       = () => fetchAsDataURL("/cover-bg.png",             "cover");
+const getLogoCoverImg   = () => fetchAsDataURL("/logo-white-cover.png",     "logoCover");
+const getLogoTableBlack = () => fetchAsDataURL("/logo-black-table.png",     "logoTable");
 const getLogoDisclaimer = () => fetchAsDataURL("/logo-white-disclaimer.png","logoDisc");
 
 /* ---------- optional API call ------------------------------ */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5103";
 async function fetchFormattedName(name: string): Promise<string> {
   const url = `${API_BASE}/investors/format-name?name=${encodeURIComponent(name.trim())}`;
-
   const r   = await fetch(url, { credentials: "include" });
   const txt = await r.text();
-
   if (!r.ok) throw new Error(`format-name ${r.status}`);
   return txt.trim();
+}
+
+/* ---------- totals helpers (mirror the fixed PDF) ---------- */
+// Ignore bracket-tags like [贖回], accept (1,234.56) as negative, drop commas/NBSP
+const parseMoney = (s: string) => {
+  const str = String(s ?? "")
+    .replace(/\[[^\]]*\]/g, "")     // drop [贖回], [買回], etc.
+    .replace(/\(([^)]+)\)/g, "-$1") // accounting negatives
+    .replace(/[, \u00A0]/g, "");
+  const m = str.match(/-?\d+(?:\.\d+)?/);
+  return m ? parseFloat(m[0]) : 0;
+};
+
+const sumMoneyLines = (s?: string) =>
+  String(s ?? "")
+    .split("\n")
+    .filter(line => !/^\s*\[[^\]]+\]\s*$/.test(line)) // skip pure-tag lines
+    .reduce((acc, line) => acc + parseMoney(line), 0);
+
+function computeTotals(table: TableRowData[]) {
+  let totalSub = 0, totalMkt = 0, totalAfter = 0;
+  for (const r of table) {
+    const sub   = sumMoneyLines(r.subscriptionAmount);
+    const mkt   = sumMoneyLines(r.marketValue); // ← now includes numbers with [贖回]
+    const after = (r.totalAfterDeduction && r.totalAfterDeduction.trim() !== "")
+      ? sumMoneyLines(r.totalAfterDeduction)
+      : mkt; // fallback to 市值 if 含息後總額 missing
+    totalSub   += sub;
+    totalMkt   += mkt;
+    totalAfter += after;
+  }
+  const totalPct = totalSub > 0 ? ((totalAfter - totalSub) / totalSub) * 100 : 0;
+  const fmtUSD = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return {
+    totalSubStr:   fmtUSD(totalSub),
+    totalMktStr:   fmtUSD(totalMkt),
+    totalAfterStr: fmtUSD(totalAfter),
+    totalPctNum:   totalPct,
+  };
 }
 
 /* ============================================================
@@ -158,23 +199,18 @@ export async function generateInvestmentPpt(data: ReportData) {
 
   /* 4. helper that lays the table, then decorates every slide ---- */
   function addPaginatedTable(
-    // pptx: PptxGenJS,
     rows: (string | number | StyledCell)[][],
     logoData: string,
     colW: number[]
   ) {
-    // remember where the slide list starts
     const firstSlideIndex = (pptx as any).slides.length;
 
-    // ---------- 1️⃣  draw the (possibly long) table -------------
     const first = pptx.addSlide();
-
     first.addTable(rows as any, {
       x: 0.45,
       y: 0.75,
       h: 4.8,                              // 0.75 ➜ 5.55 keeps footer clear
-      colW, //: [2.4, 0.8, 0.8, 1.2, 1.2, 1.2, 1.3],
-
+      colW,
       fontSize: 10,
       fontFace: "DengXian",
       align: "center",
@@ -183,19 +219,15 @@ export async function generateInvestmentPpt(data: ReportData) {
       fill: "E8E8E8",
       margin: 0.03,
       border: { pt: 1, color: "FFFFFF" },
-
       headerRow: true,
       columnHeaderBold: true,
       columnHeaderFill: "D0CECE",
       color: "000000",
-
-      // table slide background formatting
       autoPage: true,
       autoPageRepeatHeader: true,
       autoPageSlideStartY: 0.75,
     } as any);
 
-    // ---------- 2️⃣  walk every slide we just created ------------
     for (let i = firstSlideIndex; i < (pptx as any).slides.length; i++) {
       decorateTableSlide((pptx as any).slides[i], logoData);
     }
@@ -214,11 +246,12 @@ export async function generateInvestmentPpt(data: ReportData) {
     ];
 
     const allRows: (string | number | StyledCell)[][] = [headerRow];
+
     data.tableData.forEach(r => {
       allRows.push([
         r.productName ?? "",
         fmtYYYYMM(r.subscriptionTime),
-        fmtYYYYMM(r.dataDeadline),
+        fmtYYYYMMWithTagLines(r.dataDeadline),         // ← mirror PDF to show [贖回]
         fmtMoneyWithTagLines(r.subscriptionAmount),
         fmtMoneyWithTagLines(r.marketValue),
         fmtMoney(to2dp(r.totalAfterDeduction)),
@@ -226,42 +259,34 @@ export async function generateInvestmentPpt(data: ReportData) {
       ]);
     });
 
-    // ⬇︎ NEW: append 加總 row when totals are provided
-    const hasTotals =
-      (data.totalSubscriptionAmount && data.totalSubscriptionAmount !== "") ||
-      (data.totalMarketValue && data.totalMarketValue !== "") ||
-      (data.totalAfterDeduction && data.totalAfterDeduction !== "") ||
-      (data.totalProfit && data.totalProfit !== "");
+    // ⬇︎ NEW: compute totals locally (includes numbers with [贖回])
+    const totals = computeTotals(data.tableData);
 
-    if (hasTotals) {
-      // ❶ labels above totals (empty first 3 cols)
-      allRows.push([
-        "", "", "",
-        { text: "總認購金額", options: { bold: true } },
-        { text: "總市值",     options: { bold: true } },
-        { text: "含息後總額", options: { bold: true } },
-        { text: "總盈虧（%）", options: { bold: true, color: "C00000" } },
-      ]);
-      
-      allRows.push([
-        { text: "加總", options: { bold: true } },   // 產品名稱
-        "",                                          // 認購時間
-        "",                                          // 數據截止
-        fmtMoney(data.totalSubscriptionAmount),
-        fmtMoney(data.totalMarketValue),
-        fmtMoney(to2dp(data.totalAfterDeduction)),
-        profitCell(data.totalProfit),                // adds +/- and %
-      ]);
-    }
+    // ❶ labels above totals (empty first 3 cols)
+    allRows.push([
+      "", "", "",
+      { text: "總認購金額", options: { bold: true } },
+      { text: "總市值",     options: { bold: true } },
+      { text: "含息後總額", options: { bold: true } },
+      { text: "總盈虧（%）", options: { bold: true, color: "C00000" } },
+    ]);
 
-    // single call – pptxgenjs paginates, we overlay afterwards
-    // addPaginatedTable(pptx, allRows, logoTable);
+    // ❷ 加總 row (uses computed totals)
+    allRows.push([
+      { text: "加總", options: { bold: true } },   // 產品名稱
+      "",                                          // 認購時間
+      "",                                          // 數據截止
+      fmtMoney(totals.totalSubStr),
+      fmtMoney(totals.totalMktStr),
+      fmtMoney(totals.totalAfterStr),
+      profitCell(totals.totalPctNum),
+    ]);
+
     addPaginatedTable(allRows, logoTable, [2.4, 0.8, 1.2, 1.1, 1.3, 1.1, 1.2]);
   }
 
-  /* 5‑B. dividend‑history table (grouped + merged cells) -------- */
+  /* 5-B. dividend-history table (grouped + merged cells) -------- */
   if (data.dividendRows && data.dividendRows.length) {
-    /* ① group by 產品名稱(開放式基金) ---------------------------- */
     type G = { dates: string[]; amounts: string[] };
     const grouped = new Map<string, G>();
 
@@ -269,12 +294,10 @@ export async function generateInvestmentPpt(data: ReportData) {
       const key = d.fund_category;
       if (!grouped.has(key)) grouped.set(key, { dates: [], amounts: [] });
       const g = grouped.get(key)!;
-      /* keep each fund’s rows newest‑first for readability */
       g.dates.push(fmtYYYYMM(d.paid_date));
       g.amounts.push(fmtMoney(d.amount));
     });
 
-    /* ② build table rows (one row per fund) -------------------- */
     const header: StyledCell[] = [
       { text: "產品名稱(開放式基金)", options: { bold: true, fill: "D0CECE" } },
       { text: "派息時間",               options: { bold: true, fill: "D0CECE" } },
@@ -282,23 +305,16 @@ export async function generateInvestmentPpt(data: ReportData) {
     ];
 
     const rows: (string | number | StyledCell)[][] = [header];
+    const MAX_LINES_PER_ROW = 19;
 
-    const MAX_LINES_PER_ROW = 19;   // tweak if you change the styling
+    grouped.forEach((g, fund) => {
+      for (let i = 0; i < g.dates.length; i += MAX_LINES_PER_ROW) {
+        const chunkDates = g.dates.slice(i, i + MAX_LINES_PER_ROW);
+        const chunkAmts  = g.amounts.slice(i, i + MAX_LINES_PER_ROW);
+        rows.push([fund, chunkDates.join("\n"), chunkAmts.join("\n")]);
+      }
+    });
 
-      grouped.forEach((g, fund) => {
-        for (let i = 0; i < g.dates.length; i += MAX_LINES_PER_ROW) {
-          const chunkDates = g.dates.slice(i, i + MAX_LINES_PER_ROW);
-          const chunkAmts  = g.amounts.slice(i, i + MAX_LINES_PER_ROW);
-
-          rows.push([
-            fund,                          // repeat on every chunk
-            chunkDates.join("\n"),         // multi‑line date list
-            chunkAmts.join("\n"),          // multi‑line amount list
-          ]);
-        }
-      });
-
-    /* ③ paginate exactly the same way as the holdings table ---- */
     addPaginatedTable(rows, logoTable, [5.1, 1.9, 1.9]);
   }
 
@@ -306,7 +322,7 @@ export async function generateInvestmentPpt(data: ReportData) {
   {
     const slide = pptx.addSlide();
     slide.background = { data:bgCover };
-    slide.addImage({ data:logoDisc, x:7.2, y:0.4, w:2.43, h:0.9 }); // w:h = 2.7:1
+    slide.addImage({ data:logoDisc, x:7.2, y:0.4, w:2.43, h:0.9 });
 
     const disclaimer =
       "Disclaimer: This document is confidential and is intended solely for its recipient(s) only. Any unauthorized use of the contents is expressly prohibited. If you are not the intended recipient, you are hereby notified that any use, distribution, disclosure, dissemination or copying of this document is strictly prohibited. Annum Capital, its group companies, subsidiaries and affiliates and their content provider(s) shall not be responsible for the accuracy or completeness of this document or information herein. This document is for information purpose only. It is not intended as an offer or solicitation for the purchase or sale of any financial instrument or as an official confirmation of any transaction. All data and other information are not warranted as to completeness or accuracy and subject to change without notice. Liabilities for any damaged caused by this document will not be accepted.";

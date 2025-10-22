@@ -32,7 +32,7 @@ async function fetchAsDataURL(path: string, key: string): Promise<string> {
   const anyFn = fetchAsDataURL as any;
   if (anyFn[key]) return anyFn[key];
 
-  const blob = await fetch(path).then(r => r.blob());
+  const blob = await fetch(path).then((r) => r.blob());
   const dataUrl: string = await new Promise((ok, err) => {
     const fr = new FileReader();
     fr.onload = () => ok(fr.result as string);
@@ -52,7 +52,6 @@ async function fetchFormattedName(raw: string): Promise<string> {
   return (await r.text()).trim();
 }
 
-
 /* ---------- helpers for static images ---------------------------- */
 const getCoverImg = () => fetchAsDataURL("/cover-bg.png", "cover");
 const getLogoCoverImg = () => fetchAsDataURL("/logo-white-cover.png", "logoCover");
@@ -70,9 +69,10 @@ async function ensureZhengTiFan(doc: jsPDF) {
   if (!base64) {
     try {
       // same-origin absolute URL avoids weird routing
-      const url = typeof window !== "undefined"
-        ? new URL(`/fonts/${FONT_FILE}`, window.location.origin).toString()
-        : `/fonts/${FONT_FILE}`;
+      const url =
+        typeof window !== "undefined"
+          ? new URL(`/fonts/${FONT_FILE}`, window.location.origin).toString()
+          : `/fonts/${FONT_FILE}`;
 
       const res = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
       if (!res.ok) throw new Error(`font HTTP ${res.status}`);
@@ -101,16 +101,16 @@ async function ensureZhengTiFan(doc: jsPDF) {
 function fmtProfitLines(val: string): string {
   return val
     .split("\n")
-    .map(line => {
-      const raw = line.trim();                               // visible trim
+    .map((line) => {
+      const raw = line.trim(); // visible trim
       if (raw === "" || raw.toUpperCase() === "NA") return raw;
 
       /* remove all spaces / NBSPs / commas for numeric tests */
       const clean = raw.replace(/[\s,\u00A0]/g, "");
 
       /* pull the numeric value (drop any sign / %) */
-      const num   = parseFloat(clean.replace(/^[+-]?/, "").replace(/%$/, ""));
-      const hasSign = /^[+-]/.test(clean);                   // on the clean text
+      const num = parseFloat(clean.replace(/^[+-]?/, "").replace(/%$/, ""));
+      const hasSign = /^[+-]/.test(clean); // on the clean text
       const sign = num > 0 && !hasSign ? "+" : hasSign ? clean[0] : "";
 
       /* body = number without sign / % but keep internal formatting */
@@ -122,18 +122,18 @@ function fmtProfitLines(val: string): string {
 
 /* ---------- main builder ----------------------------------------- */
 export async function generateInvestmentReport(data: ReportData) {
-  const canonicalName = await fetchFormattedName(data.investor);    
-  
-  const nameInitials  = initials(canonicalName);                   
+  const canonicalName = await fetchFormattedName(data.investor);
+
+  const nameInitials = initials(canonicalName);
   // console.log("[generateInvestmentReport] canonicalName →", canonicalName, "nameInitials →", nameInitials);
 
   /* ---------- page geometry (A4 landscape) ----------------------- */
-  const pageH = 210;                       // mm
-  const pageW = (4000 / 2259) * pageH;     // ≈ 372 mm
+  const pageH = 210; // mm
+  const pageW = (4000 / 2259) * pageH; // ≈ 372 mm
 
   /* printable area */
-  const TOP_MARGIN = 55;   // first table header sits here
-  const BOTTOM_MARGIN = 45;   // keep footer area clear
+  const TOP_MARGIN = 55; // first table header sits here
+  const BOTTOM_MARGIN = 45; // keep footer area clear
   const TABLE_GAP = 0.5;
 
   const colW = [73, 32, 32, 41, 41, 41, 50];
@@ -142,14 +142,20 @@ export async function generateInvestmentReport(data: ReportData) {
   const colX: number[] = [];
   const tableX = 30;
   let cursor = tableX;
-  colW.forEach(w => { colX.push(cursor); cursor += w + TABLE_GAP; });
+  colW.forEach((w) => {
+    colX.push(cursor);
+    cursor += w + TABLE_GAP;
+  });
 
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: [pageW, pageH], compress: true });
 
   await ensureZhengTiFan(doc);
 
   const [bg, logoCover, logoDisc, logoTableBlk] = await Promise.all([
-    getCoverImg(), getLogoCoverImg(), getLogoDisclaimer(), getLogoTableBlack(),
+    getCoverImg(),
+    getLogoCoverImg(),
+    getLogoDisclaimer(),
+    getLogoTableBlack(),
   ]);
 
   /* ==============================================================
@@ -157,9 +163,7 @@ export async function generateInvestmentReport(data: ReportData) {
   =================================================================*/
   function drawTableHeader(startY: number): number {
     // grey rectangles
-    colW.forEach((w, i) =>
-      doc.setFillColor(208, 206, 206).rect(colX[i], startY, w, headerH, "F")
-    );
+    colW.forEach((w, i) => doc.setFillColor(208, 206, 206).rect(colX[i], startY, w, headerH, "F"));
     // header titles
     doc.setFont("ZhengTiFan").setFontSize(14).setTextColor(0);
     const headers = [
@@ -167,12 +171,7 @@ export async function generateInvestmentReport(data: ReportData) {
       "認購金額\n(USD)", "市值", "含息後總額", "估派息後盈虧(%)"
     ];
     headers.forEach((h, i) => {
-      doc.text(
-        h,
-        colX[i] + colW[i] / 2,
-        startY + headerH / 2,
-        { align: "center", baseline: "middle" }
-      );
+      doc.text(h, colX[i] + colW[i] / 2, startY + headerH / 2, { align: "center", baseline: "middle" });
     });
     return startY + headerH + TABLE_GAP;
   }
@@ -180,20 +179,16 @@ export async function generateInvestmentReport(data: ReportData) {
   /* ------------ footer: reusable on every table-page ------------ */
   function drawFooter() {
     doc.setFont("ZhengTiFan").setFontSize(12).setTextColor(0);
-    doc.text(
-      "存續報告僅供內部參考使用 投資人實際數字以月結單為准",
-      30,
-      pageH - 20
-    );
+    doc.text("存續報告僅供內部參考使用 投資人實際數字以月結單為准", 30, pageH - 20);
   }
-  
+
   /* ------ helper: start a new “page-2 style” table page ---------- */
   function startNewTablePage(): number {
     doc.addPage();
-    doc.setTextColor(0);     
+    doc.setTextColor(0);
     doc.addImage(logoTableBlk, "PNG", 280, 12, 70, 29.6);
     doc.setFont("ZhengTiFan").setFontSize(28).text("已投資產品總結", 30, 40);
-    drawFooter();                     // 👈  add the footer right away
+    drawFooter(); // 👈  add the footer right away
     return drawTableHeader(TOP_MARGIN);
   }
 
@@ -203,10 +198,9 @@ export async function generateInvestmentReport(data: ReportData) {
     doc.setTextColor(0);
     doc.addImage(logoTableBlk, "PNG", 280, 12, 70, 29.6);
     doc.setFont("ZhengTiFan").setFontSize(28).text("已投資產品總結", 30, 40);
-    drawFooter();                              // same footer as other pages
-    return TOP_MARGIN;                         // NOTE: no 7‑column header
+    drawFooter(); // same footer as other pages
+    return TOP_MARGIN; // NOTE: no 7-column header
   }
-
 
   /* ============ Page 1 – Cover ================================== */
   doc.addImage(bg, "PNG", 0, 0, pageW, pageH);
@@ -214,9 +208,9 @@ export async function generateInvestmentReport(data: ReportData) {
 
   // ${data.investor}存續報告
   doc.setFont("helvetica", "bold").setFontSize(26).setTextColor(255);
-  
+
   // const investorW = doc.getTextWidth(data.investor);
-  const investorW = doc.getTextWidth(nameInitials); 
+  const investorW = doc.getTextWidth(nameInitials);
 
   doc.setFont("ZhengTiFan", "normal").setFontSize(26).setTextColor(255);
   const reportLabel = " 存續報告";
@@ -251,19 +245,14 @@ export async function generateInvestmentReport(data: ReportData) {
     const cols = [
       split(r.productName),
       split(r.subscriptionTime).map(fmtYYYYMM),
-      split(fmtYYYYMMWithTagLines(r.dataDeadline)),        // date + [贖回]
-      split(fmtMoneyWithTagLines(r.subscriptionAmount)),   // money + [tag]
-      split(fmtMoneyWithTagLines(r.marketValue)),          // money + [tag]
-      split(
-        fmtMoneyLines(
-          r.totalAfterDeduction.split("\n").map(to2dp).join("\n")
-        )
-      ),
+      split(fmtYYYYMMWithTagLines(r.dataDeadline)), // date + [贖回]
+      split(fmtMoneyWithTagLines(r.subscriptionAmount)), // money + [tag]
+      split(fmtMoneyWithTagLines(r.marketValue)), // money + [tag]
+      split(fmtMoneyLines(r.totalAfterDeduction.split("\n").map(to2dp).join("\n"))),
       [r.estimatedProfit],
     ];
 
-    const CHUNK_CAP =
-      Math.floor((pageH - TOP_MARGIN - BOTTOM_MARGIN) / lineGap) - 2;
+    const CHUNK_CAP = Math.floor((pageH - TOP_MARGIN - BOTTOM_MARGIN) / lineGap) - 2;
 
     const chunks: typeof r[] = [];
     let offset = 0;
@@ -290,233 +279,228 @@ export async function generateInvestmentReport(data: ReportData) {
     return chunks;
   }
 
-
   /* ---- switch back to Helvetica for the rest ------------------- */
   doc.setFont("ZhengTiFan", "normal").setTextColor(0);
 
-    /* ---------- body rows ----------------------------------------- */
-    let zebra = 0;
+  /* ---------- body rows ----------------------------------------- */
+  let zebra = 0;
 
-    for (const logical of data.tableData) {
-      const flatRows = splitIntoChunks(logical);                  // paginate long items
+  for (const logical of data.tableData) {
+    const flatRows = splitIntoChunks(logical); // paginate long items
 
-      for (const row of flatRows) {
-        const cells = [
-          row.productName,
-          row.subscriptionTime,
-          row.dataDeadline,
-          fmtMoneyWithTagLines(row.subscriptionAmount),
-          fmtMoneyWithTagLines(row.marketValue),
-          fmtMoneyLines(
-            row.totalAfterDeduction.split("\n").map(to2dp).join("\n")
-          ),
-          fmtProfitLines(row.estimatedProfit),                    // ← NEW helper
-        ];
+    for (const row of flatRows) {
+      const cells = [
+        row.productName,
+        row.subscriptionTime,
+        row.dataDeadline,
+        fmtMoneyWithTagLines(row.subscriptionAmount),
+        fmtMoneyWithTagLines(row.marketValue),
+        fmtMoneyLines(row.totalAfterDeduction.split("\n").map(to2dp).join("\n")),
+        fmtProfitLines(row.estimatedProfit), // ← NEW helper
+      ];
 
-        const wrapped = cells.map((txt, i) =>
-          doc.splitTextToSize(
-            i === 0 ? txt.replace(/(.{1,20})/g, "$1\n") : txt,
-            colW[i] - 4
-          )
-        ) as string[][];
+      const wrapped = cells.map((txt, i) =>
+        doc.splitTextToSize(i === 0 ? txt.replace(/(.{1,20})/g, "$1\n") : txt, colW[i] - 4)
+      ) as string[][];
 
-        const rowH = Math.max(...wrapped.map(w => w.length)) * lineGap + 4;
+      const rowH = Math.max(...wrapped.map((w) => w.length)) * lineGap + 4;
 
-        /* page break? ------------------------------------------------- */
-        if (y + rowH > pageH - BOTTOM_MARGIN) y = startNewTablePage();
+      /* page break? ------------------------------------------------- */
+      if (y + rowH > pageH - BOTTOM_MARGIN) y = startNewTablePage();
 
-        /* zebra background ------------------------------------------- */
-        const bg = zebra % 2 ? [217, 217, 217] : [232, 232, 232];
-        colW.forEach((w, i) =>
-          doc.setFillColor(bg[0], bg[1], bg[2]).rect(colX[i], y, w, rowH, "F")
-        );
+      /* zebra background ------------------------------------------- */
+      const bg = zebra % 2 ? [217, 217, 217] : [232, 232, 232];
+      colW.forEach((w, i) => doc.setFillColor(bg[0], bg[1], bg[2]).rect(colX[i], y, w, rowH, "F"));
 
-        /* draw the text ---------------------------------------------- */
-        wrapped.forEach((lines, colIdx) => {
-          const cx = colX[colIdx] + colW[colIdx] / 2;
+      /* draw the text ---------------------------------------------- */
+      wrapped.forEach((lines, colIdx) => {
+        const cx = colX[colIdx] + colW[colIdx] / 2;
 
-          lines.forEach((ln: string, li: number) => {
-            const v = ln.trim();
+        lines.forEach((ln: string, li: number) => {
+          const v = ln.trim();
 
-            /* colour only the P&L column */
-            if (colIdx === 6) {
-              const clean = v.replace(/[\s\u00A0]/g, "");       // zap NBSP/space
-              if (/^-/.test(clean))       doc.setTextColor(192, 0, 0);   // red
-              else if (/^\+|\d/.test(clean))
-                                        doc.setTextColor(0, 192, 0);    // green
-              else                       doc.setTextColor(0, 0, 0);     // NA / blank
-            } else {
-              doc.setTextColor(0);
-            }
+          /* colour only the P&L column */
+          if (colIdx === 6) {
+            const clean = v.replace(/[\s\u00A0]/g, ""); // zap NBSP/space
+            if (/^-/.test(clean)) doc.setTextColor(192, 0, 0); // red
+            else if (/^\+|\d/.test(clean)) doc.setTextColor(0, 192, 0); // green
+            else doc.setTextColor(0, 0, 0); // NA / blank
+          } else {
+            doc.setTextColor(0);
+          }
 
-            doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
-          });
+          doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
         });
+      });
 
-        y += rowH + TABLE_GAP;
-        zebra++;
-      }
+      y += rowH + TABLE_GAP;
+      zebra++;
     }
+  }
 
-    /* ===== NEW: totals label + 加總 rows ========================= */
+  /* ===== totals label + 加總 rows robust money parser that ignores tags like [贖回]========================= */
 
-    // helpers to parse numbers safely
-    const parseNum = (s: string) => {
-      const n = Number(String(s).replace(/[, \u00A0]/g, "").trim());
-      return Number.isFinite(n) ? n : 0;
-    };
-    const sumMoneyLines = (s: string | undefined) =>
-      String(s ?? "")
-        .split("\n")
-        .map(parseNum)
-        .reduce((a, b) => a + b, 0);
+  const parseMoney = (s: string) => {
+    const str = String(s ?? "")
+      .replace(/\[[^\]]*\]/g, "") // drop bracket tags: [贖回], [買回], etc.
+      .replace(/\(([^)]+)\)/g, "-$1") // accounting negatives: (1,234.56) → -1,234.56
+      .replace(/[, \u00A0]/g, ""); // thousands separators & NBSP
 
-    // 1) totals per your rules
-    let totalSub = 0, totalMkt = 0, totalAfter = 0;
-    (data.tableData || []).forEach(r => {
-      const sub = sumMoneyLines(r.subscriptionAmount);
-      const mkt = sumMoneyLines(r.marketValue);
-      const after = (r.totalAfterDeduction && r.totalAfterDeduction.trim() !== "")
+    const m = str.match(/-?\d+(?:\.\d+)?/);
+    return m ? parseFloat(m[0]) : 0;
+  };
+
+  const sumMoneyLines = (s?: string) =>
+    String(s ?? "")
+      .split("\n")
+      .filter((line) => !/^\s*\[[^\]]+\]\s*$/.test(line)) // skip pure tag lines
+      .reduce((acc, line) => acc + parseMoney(line), 0);
+
+  // 1) totals per your rules
+  let totalSub = 0,
+    totalMkt = 0,
+    totalAfter = 0;
+  (data.tableData || []).forEach((r) => {
+    const sub = sumMoneyLines(r.subscriptionAmount);
+    const mkt = sumMoneyLines(r.marketValue); // ← now includes numbers with [贖回]
+    const after =
+      r.totalAfterDeduction && r.totalAfterDeduction.trim() !== ""
         ? sumMoneyLines(r.totalAfterDeduction)
         : mkt; // use 市值 if 含息後總額 missing
-      totalSub   += sub;
-      totalMkt   += mkt;
-      totalAfter += after;
+    totalSub += sub;
+    totalMkt += mkt;
+    totalAfter += after;
+  });
+  const totalPct = totalSub > 0 ? ((totalAfter - totalSub) / totalSub) * 100 : 0;
+
+  // 2) formatted strings
+  const fmtUSD = (n: number) =>
+    n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const totalSubStr = fmtUSD(totalSub);
+  const totalMktStr = fmtUSD(totalMkt);
+  const totalAfterStr = fmtUSD(totalAfter);
+  const totalPctStr = `${totalPct >= 0 ? "+" : ""}${totalPct.toFixed(2)}%`;
+
+  // 3) LABEL ROW (empty first 3 cols)
+  const labelCells = ["", "", "", "總認購金額", "總市值", "含息後總額", "總盈虧（%）"];
+  const wrappedLabel = labelCells.map((txt, i) => doc.splitTextToSize(String(txt), colW[i] - 4)) as string[][];
+  const labelH = Math.max(...wrappedLabel.map((w) => w.length)) * lineGap + 4;
+
+  if (y + labelH > pageH - BOTTOM_MARGIN) y = startNewTablePage();
+
+  // draw label row background
+  colW.forEach((w, i) => doc.setFillColor(208, 206, 206).rect(colX[i], y, w, labelH, "F"));
+
+  // draw label text (make the last label red like header style)
+  wrappedLabel.forEach((lines, colIdx) => {
+    const cx = colX[colIdx] + colW[colIdx] / 2;
+    lines.forEach((ln: string, li: number) => {
+      if (colIdx === 6) doc.setTextColor(192, 0, 0);
+      else doc.setTextColor(0);
+      doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
     });
-    const totalPct = totalSub > 0 ? ((totalAfter - totalSub) / totalSub) * 100 : 0;
+  });
+  y += labelH + TABLE_GAP;
 
-    // 2) formatted strings
-    const fmtUSD = (n: number) =>
-      n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const totalSubStr   = fmtUSD(totalSub);
-    const totalMktStr   = fmtUSD(totalMkt);
-    const totalAfterStr = fmtUSD(totalAfter);
-    const totalPctStr   = `${totalPct >= 0 ? "+" : ""}${totalPct.toFixed(2)}%`;
+  // 4) 加總 ROW
+  const totalsCells = ["加總", "", "", totalSubStr, totalMktStr, totalAfterStr, totalPctStr];
+  const wrappedTotals = totalsCells.map((txt, i) =>
+    doc.splitTextToSize(String(txt), colW[i] - 4)
+  ) as string[][];
+  const totalsH = Math.max(...wrappedTotals.map((w) => w.length)) * lineGap + 4;
 
-    // 3) LABEL ROW (empty first 3 cols)
-    const labelCells = ["", "", "", "總認購金額", "總市值", "含息後總額", "總盈虧（%）"];
-    const wrappedLabel = labelCells.map((txt, i) =>
-      doc.splitTextToSize(String(txt), colW[i] - 4)
-    ) as string[][];
-    const labelH = Math.max(...wrappedLabel.map(w => w.length)) * lineGap + 4;
+  if (y + totalsH > pageH - BOTTOM_MARGIN) y = startNewTablePage();
 
-    if (y + labelH > pageH - BOTTOM_MARGIN) y = startNewTablePage();
+  // darker grey for totals row
+  colW.forEach((w, i) => doc.setFillColor(208, 206, 206).rect(colX[i], y, w, totalsH, "F"));
 
-    // draw label row background
-    colW.forEach((w, i) => doc.setFillColor(208, 206, 206).rect(colX[i], y, w, labelH, "F"));
-
-    // draw label text (make the last label red like header style)
-    wrappedLabel.forEach((lines, colIdx) => {
-      const cx = colX[colIdx] + colW[colIdx] / 2;
-      lines.forEach((ln: string, li: number) => {
-        if (colIdx === 6) doc.setTextColor(192, 0, 0); else doc.setTextColor(0);
-        doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
-      });
+  wrappedTotals.forEach((lines, colIdx) => {
+    const cx = colX[colIdx] + colW[colIdx] / 2;
+    lines.forEach((ln: string, li: number) => {
+      // colour the P&L cell red/green like other rows
+      if (colIdx === 6) {
+        const clean = ln.replace(/[\s\u00A0]/g, "");
+        if (/^-/.test(clean)) doc.setTextColor(192, 0, 0);
+        else if (/^\+|\d/.test(clean)) doc.setTextColor(0, 192, 0);
+        else doc.setTextColor(0, 0, 0);
+      } else {
+        doc.setTextColor(0);
+      }
+      doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
     });
-    y += labelH + TABLE_GAP;
+  });
 
-    // 4) 加總 ROW
-    const totalsCells = [
-      "加總", "", "",
-      totalSubStr, totalMktStr, totalAfterStr, totalPctStr,
-    ];
-    const wrappedTotals = totalsCells.map((txt, i) =>
-      doc.splitTextToSize(String(txt), colW[i] - 4)
-    ) as string[][];
-    const totalsH = Math.max(...wrappedTotals.map(w => w.length)) * lineGap + 4;
+  y += totalsH + TABLE_GAP;
 
-    if (y + totalsH > pageH - BOTTOM_MARGIN) y = startNewTablePage();
-
-    // darker grey for totals row
-    colW.forEach((w, i) => doc.setFillColor(208, 206, 206).rect(colX[i], y, w, totalsH, "F"));
-
-    wrappedTotals.forEach((lines, colIdx) => {
-      const cx = colX[colIdx] + colW[colIdx] / 2;
-      lines.forEach((ln: string, li: number) => {
-        // colour the P&L cell red/green like other rows
-        if (colIdx === 6) {
-          const clean = ln.replace(/[\s\u00A0]/g, "");
-          if (/^-/.test(clean))      doc.setTextColor(192, 0, 0);
-          else if (/^\+|\d/.test(clean)) doc.setTextColor(0, 192, 0);
-          else                       doc.setTextColor(0, 0, 0);
-        } else {
-          doc.setTextColor(0);
-        }
-        doc.text(ln, cx, y + 8 + li * lineGap, { align: "center" });
-      });
-    });
-
-    y += totalsH + TABLE_GAP;
-    
-  /* ============ Page 4 – Dividend‑history table (3 columns) =============== */
+  /* ============ Page 4 – Dividend-history table (3 columns) =============== */
   if (data.dividendRows && data.dividendRows.length) {
     /* ① group rows by 產品名稱(開放式基金) */
     const grouped = new Map();
-    data.dividendRows.forEach(r => {
+    data.dividendRows.forEach((r) => {
       if (!grouped.has(r.fund_category)) grouped.set(r.fund_category, { dates: [], amts: [] });
       const g = grouped.get(r.fund_category);
-      g.dates.unshift(fmtYYYYMM(r.paid_date));     // newest‑first for readability
-      g.amts .unshift(fmtMoney(r.amount));
+      g.dates.unshift(fmtYYYYMM(r.paid_date)); // newest-first for readability
+      g.amts.unshift(fmtMoney(r.amount));
     });
 
     /* ② geometry helpers */
-    const divColW = [120, 90, 90];                     // widths
-    const divColX = [tableX, tableX + divColW[0] + TABLE_GAP, tableX + divColW[0] + divColW[1] + 2*TABLE_GAP];
+    const divColW = [120, 90, 90]; // widths
+    const divColX = [tableX, tableX + divColW[0] + TABLE_GAP, tableX + divColW[0] + divColW[1] + 2 * TABLE_GAP];
 
     const drawDivHeader = () => {
-      doc.setFillColor(208,206,206);
-      divColW.forEach((w,i) => doc.rect(divColX[i], y, w, headerH, "F"));
+      doc.setFillColor(208, 206, 206);
+      divColW.forEach((w, i) => doc.rect(divColX[i], y, w, headerH, "F"));
       doc.setFontSize(14).setTextColor(0);
-      ["產品名稱(開放式基金)", "派息時間", "派息金額"].forEach((t,i)=>
-        doc.text(t, divColX[i] + divColW[i]/2, y + headerH/2, { align:"center", baseline:"middle" })
+      ["產品名稱(開放式基金)", "派息時間", "派息金額"].forEach((t, i) =>
+        doc.text(t, divColX[i] + divColW[i] / 2, y + headerH / 2, { align: "center", baseline: "middle" })
       );
       y += headerH + TABLE_GAP;
     };
 
-    const CAP_LINES = Math.floor((pageH - TOP_MARGIN - BOTTOM_MARGIN - 4) / lineGap) - 2; // max text‑lines / page
+    const CAP_LINES = Math.floor((pageH - TOP_MARGIN - BOTTOM_MARGIN - 4) / lineGap) - 2; // max text-lines / page
 
-    y = 0;                         // force lazy creation of first page
+    y = 0; // force lazy creation of first page
     let zebra = 0;
 
     grouped.forEach(({ dates, amts }, fund) => {
       let offset = 0;
-      let firstRowOnPage = true;   // reset on *every* physical page
+      let firstRowOnPage = true; // reset on *every* physical page
 
       while (offset < dates.length) {
         /* how many date/amount lines fit in this row */
         const take = Math.min(CAP_LINES, dates.length - offset);
         const chunkDates = dates.slice(offset, offset + take);
-        const chunkAmts  = amts .slice(offset, offset + take);
+        const chunkAmts = amts.slice(offset, offset + take);
 
         // estimate row height (needs wrapped text height)
-        const hDates = doc.splitTextToSize(chunkDates.join("\n"), divColW[1]-4).length;
-        const hAmts  = doc.splitTextToSize(chunkAmts .join("\n"), divColW[2]-4).length;
-        const rowH   = Math.max(hDates, hAmts, 1) * lineGap + 4;
+        const hDates = doc.splitTextToSize(chunkDates.join("\n"), divColW[1] - 4).length;
+        const hAmts = doc.splitTextToSize(chunkAmts.join("\n"), divColW[2] - 4).length;
+        const rowH = Math.max(hDates, hAmts, 1) * lineGap + 4;
 
         /* page break BEFORE we decide whether to print fund name */
         if (y === 0 || y + rowH > pageH - BOTTOM_MARGIN) {
           y = startNewDivTablePage();
           drawDivHeader();
-          firstRowOnPage = true;   // we are top‑of‑page now
+          firstRowOnPage = true; // we are top-of-page now
         }
 
         /* show fund name if: (a) first logical chunk *or* (b) first row on THIS physical page */
-        const chunkFund = (offset === 0 || firstRowOnPage) ? fund : "";
+        const chunkFund = offset === 0 || firstRowOnPage ? fund : "";
 
         const wrapped = [
-          doc.splitTextToSize(chunkFund,            divColW[0]-4),
-          doc.splitTextToSize(chunkDates.join("\n"), divColW[1]-4),
-          doc.splitTextToSize(chunkAmts .join("\n"), divColW[2]-4),
+          doc.splitTextToSize(chunkFund, divColW[0] - 4),
+          doc.splitTextToSize(chunkDates.join("\n"), divColW[1] - 4),
+          doc.splitTextToSize(chunkAmts.join("\n"), divColW[2] - 4),
         ];
 
-        const realRowH = Math.max(...wrapped.map(w => w.length)) * lineGap + 4; // (may equal rowH)
+        const realRowH = Math.max(...wrapped.map((w) => w.length)) * lineGap + 4; // (may equal rowH)
 
         /* zebra fill + draw text */
-        const bg = zebra % 2 ? [217,217,217] : [232,232,232];
-        divColW.forEach((w,i) => {
+        const bg = zebra % 2 ? [217, 217, 217] : [232, 232, 232];
+        divColW.forEach((w, i) => {
           doc.setFillColor(bg[0], bg[1], bg[2]).rect(divColX[i], y, w, realRowH, "F");
           wrapped[i].forEach((ln: string, li: number) =>
-            doc.text(ln, divColX[i] + w/2, y + 8 + li*lineGap, { align:"center" })
+            doc.text(ln, divColX[i] + w / 2, y + 8 + li * lineGap, { align: "center" })
           );
         });
 
@@ -524,7 +508,7 @@ export async function generateInvestmentReport(data: ReportData) {
         y += realRowH + TABLE_GAP;
         zebra += 1;
         offset += take;
-        firstRowOnPage = false;    // subsequent rows on same page
+        firstRowOnPage = false; // subsequent rows on same page
       }
     });
   }
@@ -539,7 +523,7 @@ export async function generateInvestmentReport(data: ReportData) {
     "Disclaimer: This document is confidential and is intended solely for its recipient(s) only. Any unauthorized use of the contents is expressly prohibited. If you are not the intended recipient, you are hereby notified that any use, distribution, disclosure, dissemination or copying of this document is strictly prohibited. Annum Capital, its group companies, subsidiaries and affiliates and their content provider(s) shall not be responsible for the accuracy or completeness of this document or information herein. This document is for information purpose only. It is not intended as an offer or solicitation for the purchase or sale of any financial instrument or as an official confirmation of any transaction. All data and other information are not warranted as to completeness or accuracy and subject to change without notice. Liabilities for any damaged caused by this document will not be accepted.";
   doc.text(doc.splitTextToSize(disclaimer, 227.2), 53.3, 71.7);
 
-  const investorSlug = canonicalName.replace(/\s+/g, "_"); 
-  const yyyymm       = data.reportDate.substring(0, 7).replace("-", "");
+  const investorSlug = canonicalName.replace(/\s+/g, "_");
+  const yyyymm = data.reportDate.substring(0, 7).replace("-", "");
   doc.save(`${nameInitials}_存續報告_${yyyymm}.pdf`);
 }

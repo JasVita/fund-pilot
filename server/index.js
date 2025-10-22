@@ -37,7 +37,8 @@ const PORT = process.env.PORT || 5103;
 (async () => {
   await verifyConnection();
   await ensureTables();
-  app.listen(PORT, () =>
+  // app.listen(PORT, () =>
+  app.listen(PORT, '0.0.0.0', () =>
     console.log(`🚀 API running on http://localhost:${PORT}`)
   );
 })();
