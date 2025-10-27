@@ -35,7 +35,7 @@ const fsp  = require("fs").promises;
 
 // Prefer server/data/fund-level.json, fallback to client/public/data/fund-level.json
 const CANDIDATE_PATHS = [
-  path.resolve(__dirname, "..", "data", "fund-level.json"),               // <-- your current file
+  path.resolve(__dirname, "..", "data", "fund-level.json"),
   path.resolve(__dirname, "../..", "client", "public", "data", "fund-level.json"),
 ];
 
@@ -138,7 +138,6 @@ exports.netCash = async (req, res) => {
     const { rows } = await pool.query("SELECT * FROM get_closing_available_balance_fund_all($1);", [fundId]);
 
     /* ---------- 3) 取得最新一筆 ----------------------------- */
-    // SQL 已 ORDER BY statement_date DESC，rows[0] 就是最新
     const latestRow = rows[0] ?? null;
 
     /* ---------- 4) &month=YYYY-MM 過濾（若有帶）------------ */
@@ -159,7 +158,6 @@ exports.netCash = async (req, res) => {
  * GET /dashboard/nav-value-totals-vs-div?fund_id=…
  * curl -H "Cookie: fp_jwt=$JWT" "http://localhost:5003/dashboard/nav-value-totals-vs-div?fund_id=1"
  * Calls: get_nav_dividend_last6m_fund($1)
- * 3. NAV value totals vs dividends
  * Returns [{ period:"YYYY-MM", nav:1234.56, dividend:789.01 }, …]
  */
 exports.navVsDiv = async (req, res) => {
@@ -181,7 +179,6 @@ exports.navVsDiv = async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    /* Function raises P0001 when the fund has no snapshots */
     if (err.code === "P0001" && /No holdings_snapshot rows/.test(err.message)) {
       return res.json([]); // empty set → HTTP 200
     }
@@ -201,16 +198,9 @@ exports.navVsDiv = async (req, res) => {
 exports.aumHistory = async (req, res) => {
   const user = req.auth;
 
-  /* ---------- 1) normalise inputs --------------------------- */
-  // const companyId =
-  //   user.company_id && Number.isFinite(+user.company_id)
-  //     ? Number(user.company_id)
-  //     : null;                                    // null ⇒ no filtering
   const after = req.query.after ?? null; // "YYYY-MM-DD"
   const limit = Number(req.query.limit ?? 30); // default 30
   const fundId = req.query.fund_id ? Number(req.query.fund_id) : null;
-
-  /* ---------- 2) build query & params ----------------------- */
 
   let text = `
     SELECT
@@ -236,7 +226,6 @@ exports.aumHistory = async (req, res) => {
            LIMIT  $${idx}`;
   vals.push(limit);
 
-  /* ---------- 3) run & return ------------------------------- */
   try {
     const { rows } = await pool.query(text, vals);
     res.json(rows);
@@ -259,7 +248,6 @@ exports.dealingCalendar = async (req, res) => {
 
   console.log("[dealingCalendar] user=%s role=%s fund=%s", user.email, user.role, fundId ?? "ALL");
 
-  // quick sanity‐check - avoids sending “NaN” to the DB
   if (req.query.fund_id && !Number.isFinite(fundId)) {
     return res.status(400).json({ error: "Invalid fund_id" });
   }
@@ -271,10 +259,10 @@ exports.dealingCalendar = async (req, res) => {
          ROUND(daily_amount::numeric, 2)             AS daily_amount,
          to_char(submission_date,'YYYY-MM-DD')       AS submission_date
        FROM get_dealing_calendar($1);`,
-      [fundId] // null → ALL funds (per fn definition)
+      [fundId]
     );
 
-    res.json(rows); // ⇐ 200 JSON array
+    res.json(rows);
   } catch (err) {
     console.error("dealingCalendar:", err);
     res.status(500).json({ error: err.message });
@@ -317,23 +305,19 @@ exports.upsertDividendYields = async (req, res) => {
   const fundId = Number(fund_id);
   if (!Number.isFinite(fundId)) return res.status(400).json({ error: "fund_id required" });
 
-  // sanitize upsserts
   const entries = Object.entries(rates || {})
     .map(([y, v]) => [Number(y), Number(v)])
     .filter(([yr, pct]) => Number.isFinite(yr) && yr >= 2000 && yr <= 2100 && Number.isFinite(pct) && pct >= 0 && pct <= 100);
 
-  // sanitize deletes
   const delYears = Array.isArray(delete_years)
     ? delete_years.map(Number).filter((y) => Number.isFinite(y) && y >= 2000 && y <= 2100)
     : [];
 
-  // const uid = req.user?.id || null; // set by requireAuth
-  const uid = req.auth?.sub ?? null; // JWT subject from requireAuth
+  const uid = req.auth?.sub ?? null;
 
   try {
     await pool.query("BEGIN");
 
-    // A) deletes (blank fields become '—' by removing rows)
     if (delYears.length) {
       await pool.query(
         `DELETE FROM dividend_yield
@@ -342,7 +326,6 @@ exports.upsertDividendYields = async (req, res) => {
       );
     }
 
-    // B) upserts
     if (entries.length) {
       let i = 1;
       const params = [];
@@ -371,5 +354,87 @@ exports.upsertDividendYields = async (req, res) => {
     await pool.query("ROLLBACK");
     console.error("upsertDividendYields:", err);
     res.status(500).json({ error: "server_error" });
+  }
+};
+
+/* ======================================================================
+   NEW for Fund Level (DB-backed):
+   - GET /dashboard/fund-classes?fund_id=<id>
+   - GET /dashboard/fund-level-db?fund_id=<id>&class_name=<name>&flat=true
+   ====================================================================== */
+
+/** GET /dashboard/fund-classes?fund_id=<id>
+ *  → ["Class A - Lead Series", "Class B - Lead Series", ...]
+ */
+exports.listFundClasses = async (req, res) => {
+  const fundId = Number(req.query.fund_id);
+  if (!Number.isFinite(fundId)) {
+    return res.status(400).json({ error: "fund_id is required" });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT class_name
+         FROM dashboard.fund_level
+        WHERE fund_id = $1
+        ORDER BY class_name`,
+      [fundId]
+    );
+    res.json(rows.map((r) => r.class_name));
+  } catch (err) {
+    console.error("listFundClasses:", err);
+    res.status(500).json({ error: "server_error" });
+  }
+};
+
+/** GET /dashboard/fund-level-db?fund_id=<id>&class_name=<name>&flat=true
+ *  內部呼叫：SELECT dashboard.fund_class_series($1,$2) AS payload;
+ *  - flat=true  → 扁平列 [{ fund_id, class_name, year, date:"YYYY-MM", nav, return_pct, ytd_pct }]
+ *  - flat!=true → 原始陣列 [{ year, months:[...] }]
+ */
+exports.fundLevelDb = async (req, res) => {
+  const fundId = Number(req.query.fund_id);
+  const className = req.query.class_name || null;
+  const flat = String(req.query.flat || "false").toLowerCase() === "true";
+
+  if (!Number.isFinite(fundId)) {
+    return res.status(400).json({ error: "fund_id is required" });
+  }
+  if (!className) {
+    return res.status(400).json({ error: "class_name is required" });
+  }
+
+  try {
+    // 你的 SQL function 定義為 p_year 預設 NULL，因此兩參數呼叫即可
+    const { rows } = await pool.query(
+      "SELECT dashboard.fund_class_series($1,$2) AS payload;",
+      [fundId, className]
+    );
+
+    const payload = rows?.[0]?.payload || []; // [{year, months:[{month, nav, return_pct, ytd_pct}, ...]}]
+
+    if (!flat) {
+      return res.json(payload);
+    }
+
+    // 扁平化供 chart 綁定
+    const out = [];
+    for (const y of payload) {
+      for (const m of (y.months || [])) {
+        out.push({
+          fund_id: fundId,
+          class_name: className,
+          year: Number(y.year),
+          date: m.month,                                 // "YYYY-MM"
+          nav: m.nav == null ? null : Number(m.nav),
+          return_pct: m.return_pct == null ? null : Number(m.return_pct),
+          ytd_pct: m.ytd_pct == null ? null : Number(m.ytd_pct),
+        });
+      }
+    }
+    return res.json(out);
+  } catch (err) {
+    console.error("fundLevelDb:", err);
+    return res.status(500).json({ error: "server_error", detail: err.message });
   }
 };
